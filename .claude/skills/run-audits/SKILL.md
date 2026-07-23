@@ -1,15 +1,15 @@
 ---
 name: run-audits
-description: Drain pending Visibility Studio jobs — find businesses in the queued niche + location with live web research, audit each website's visibility and conversion signals, scrape public contact emails, score and prioritize, draft personalized outreach, and write every business back into the local SQLite database so it appears in the app.
+description: Drain pending Visibility Studio jobs — find businesses in the queued niche + location with live web research, audit each website's visibility and conversion signals, scrape public contact emails, score and prioritize, draft personalized outreach, and write every business back into the Postgres database so it appears in the app.
 ---
 
 # Run queued visibility audits
 
-You are the research engine for the Visibility Studio app in this project. Execute every pending job in the queue.
+You are the research engine for the Visibility Studio app in this project. Execute every pending job in the queue. Requires `DATABASE_URL` set (the Supabase Postgres pooled connection string — see CLAUDE.md).
 
 ## The job loop
 
-All queue access goes through the engine CLI (never hand-write SQL against `data/visibility.db`):
+All queue access goes through the engine CLI (never hand-write SQL against the database directly):
 
 1. **List pending work**: `npm run engine -- pending` — prints each job with its context (the audit row plus any businesses already stored for it, for dedupe).
 2. For each job, **claim it**: `npm run engine -- claim <jobId>` (marks it running so the UI shows progress).

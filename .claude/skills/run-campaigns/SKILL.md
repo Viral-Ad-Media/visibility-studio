@@ -1,16 +1,17 @@
 ---
 name: run-campaigns
-description: Drain pending Visibility Studio campaign jobs — for each business added to a campaign, build a coded homepage redesign mockup addressing that business's own audit findings, generate a real Calendly booking link, and back mockups/audit CSVs up to Google Drive. Writes results back into the local SQLite database so they appear in the app.
+description: Drain pending Visibility Studio campaign jobs — for each business added to a campaign, build a coded homepage redesign mockup addressing that business's own audit findings, generate a real Calendly booking link, and back mockups/audit CSVs up to Google Drive. Writes results back into the Postgres database so they appear in the app.
 ---
 
 # Run queued campaign jobs
 
 You are the engine for Visibility Studio's campaign phase and its Drive backups. Execute every
-pending `build_redesign`, `create_booking_link`, and `backup_audit_csv` job in the queue.
+pending `build_redesign`, `create_booking_link`, and `backup_audit_csv` job in the queue. Requires
+`DATABASE_URL` set (the Supabase Postgres pooled connection string — see CLAUDE.md).
 
 ## The job loop
 
-All queue access goes through the engine CLI (never hand-write SQL against `data/visibility.db`):
+All queue access goes through the engine CLI (never hand-write SQL against the database directly):
 
 1. **List pending work**: `npm run engine -- pending` — prints every pending job with context.
    For campaign jobs the context includes `business` (the full audited business row — scores,
@@ -92,9 +93,10 @@ business.
 Follow the Calendly MCP's own grounding order:
 
 1. `users-get_current_user` first, to ground the host.
-2. Check `settings` for a `calendly_event_type_uri` (read via `sqlite3 data/visibility.db
-   "SELECT value FROM settings WHERE key='calendly_event_type_uri'"` — read-only, fine to
-   hand-write). If set, use that event type directly.
+2. Check `vis_settings` for a `calendly_event_type_uri` — read it via the Supabase MCP's
+   `execute_sql` tool (`SELECT value FROM vis_settings WHERE key='calendly_event_type_uri'`,
+   against the Vam-dashboard project) rather than a raw `psql`/engine call; it's read-only and
+   doesn't need `DATABASE_URL`. If set, use that event type directly.
 3. If unset, call `event_types-list_event_types` (filtered to the host) and **do not just grab the
    first active one** — inspect each candidate's `custom_questions` and `description`. A real
    account is likely to have event types built for a completely different funnel (e.g. an

@@ -1,13 +1,19 @@
 # Visibility Studio
 
-Local business-visibility audit studio. The Next.js app (port 3300) is the visual cockpit and owns
-the SQLite database (`data/visibility.db`); **Claude Code is the engine** — it drains the `jobs`
-queue in two phases. Phase 1 audits businesses using live web research (WebSearch/WebFetch/browser)
-and the Business Visibility Auditor methodology (`anthropic-skills:business-visibility-auditor` —
-invoke it when available; `/run-audits` embeds the load-bearing rules as a fallback). Phase 2 turns
-a selection of audited businesses into a **campaign**: a coded homepage redesign mockup and a real
-Calendly booking link per business, tracked through a manual pipeline up to the point of sending
-(sending stays a human action, outside this app).
+Business-visibility audit studio. The Next.js app is the visual cockpit — deployed on Vercel, with
+a Postgres database on Supabase — and **Claude Code is the engine**, run locally against that same
+remote database, draining the `jobs` queue in two phases. Phase 1 audits businesses using live web
+research (WebSearch/WebFetch/browser) and the Business Visibility Auditor methodology
+(`anthropic-skills:business-visibility-auditor` — invoke it when available; `/run-audits` embeds
+the load-bearing rules as a fallback). Phase 2 turns a selection of audited businesses into a
+**campaign**: a coded homepage redesign mockup and a real Calendly booking link per business,
+tracked through a manual pipeline up to the point of sending (sending stays a human action, outside
+this app).
+
+**Vercel hosts the cockpit; it does not run the engine.** Nothing on Vercel drains the jobs queue,
+does web research, or calls Calendly/Drive — that only happens when a human runs Claude Code
+locally with `DATABASE_URL` pointed at the same Supabase database the deployed app uses. The UI is
+shared; the engine invocation is not.
 
 ## The skills
 
@@ -18,18 +24,30 @@ Calendly booking link per business, tracked through a manual pipeline up to the 
 
 ## Database
 
-Local SQLite at `data/visibility.db` (WAL mode), schema auto-created by `lib/db.ts`.
-Tables: `audits` (one per niche+location request; `csv_drive_url`/`csv_drive_backed_up_at` track
-the most recent Drive backup), `businesses` (one row per audited business — mirrors the Business
-Visibility Auditor sheet schema; `crm_status` is the CRM column), `campaigns` (one per audit — a
-named selection of that audit's businesses to pursue), `campaign_businesses` (join table: `stage`
-is manual/user-only, never touched by the engine; `redesign_status`/`redesign_html`/
-`redesign_drive_url` and `booking_status`/`booking_link`/`booking_event_type` are engine-owned),
-`jobs` (the queue: pending → running → done/error), `settings`.
+Postgres on Supabase, **shared with other unrelated apps** in the `Vam-dashboard` project — every
+table is `vis_`-prefixed to keep this app's schema isolated (`vis_audits`, `vis_businesses`,
+`vis_campaigns`, `vis_campaign_businesses`, `vis_jobs`, `vis_settings`). Managed via the Supabase
+MCP connector's `apply_migration` (not a local migration file) — there is no bootstrap-on-boot step
+the way there was with the old local SQLite file.
 
-Schema changes to existing tables go through the idempotent `migrate()` step in `lib/db.ts`
-(`ALTER TABLE ... ADD COLUMN`, guarded by `PRAGMA table_info`) — `CREATE TABLE IF NOT EXISTS`
-alone doesn't retrofit columns onto a table that already has rows.
+`lib/db.ts` is a thin `pg`-based compatibility shim, not a real ORM — it exists so the app's
+original better-sqlite3-shaped code (`db.prepare(sql).get/.all/.run(...)`) didn't need a full
+rewrite when this app moved off local SQLite onto Postgres. It supports both parameter styles the
+SQL already uses (positional `?`, named `@word`), auto-appends `RETURNING id` to bare INSERTs so
+`.lastInsertRowid` keeps working, and exposes `db.transaction(async (tx) => ...)` for multi-statement
+transactions. New code should keep using this shape rather than reaching for raw `pg.Pool` calls.
+
+`vis_jobs.payload` is stored as JSON-encoded TEXT (not `jsonb`) — queries that need to filter on a
+payload field use `(payload::json->>'field')::bigint = ?` rather than SQLite's old
+`json_extract(payload, '$.field')`.
+
+Tables: `vis_audits` (one per niche+location request; `csv_drive_url`/`csv_drive_backed_up_at`
+track the most recent Drive backup), `vis_businesses` (one row per audited business — mirrors the
+Business Visibility Auditor sheet schema; `crm_status` is the CRM column), `vis_campaigns` (one per
+audit — a named selection of that audit's businesses to pursue), `vis_campaign_businesses` (join
+table: `stage` is manual/user-only, never touched by the engine; `redesign_status`/`redesign_html`/
+`redesign_drive_url` and `booking_status`/`booking_link`/`booking_event_type` are engine-owned),
+`vis_jobs` (the queue: pending → running → done/error), `vis_settings`.
 
 **Engine contract — always use the CLI, never hand-write SQL for queue mutations:**
 
@@ -44,8 +62,8 @@ npm run engine -- fail <jobId> --message "why"
 Business fields, campaign summaries, and booking-link meta go through `--meta` JSON files
 (scratchpad) — this avoids SQL-escaping entirely. `--content <file>` is for raw, unescaped output
 (currently just the redesign mockup HTML — painful to hand-escape into JSON). `add-business`
-dedupes on normalized website, then name+location. Read-only `sqlite3` queries are fine for
-inspection.
+dedupes on normalized website, then name+location. Read-only inspection queries can go through the
+Supabase MCP's `execute_sql` tool (project: Vam-dashboard) — no need for `DATABASE_URL` just to look.
 
 ## Google Drive backups
 
@@ -87,12 +105,21 @@ use for booking links. Leave unset and the skill auto-picks the host's first act
 
 ## Dev
 
+Requires `DATABASE_URL` in the environment (or `.env.local`) — the Supabase Postgres pooled
+("Transaction pooler") connection string. Get it from Supabase Dashboard → Vam-dashboard project →
+Project Settings → Database → Connection string. Without it, `npm run dev` and `npm run engine`
+both fail at the first query, not at startup (the `pg.Pool` constructor doesn't validate eagerly).
+
 ```bash
-npm run dev        # app on http://localhost:3300
+DATABASE_URL="postgres://..." npm run dev        # app on http://localhost:3300
+DATABASE_URL="postgres://..." npm run engine -- pending
 ```
 
-No external services required for audits — the DB is a local file and all research happens through
-Claude Code's own web tools. Campaigns additionally use the Calendly and Google Drive MCP
-connectors already authorized in this environment (no new API keys). CSV export (per audit)
-matches the Business Visibility Auditor Google Sheets schema exactly, so it imports cleanly into a
-master sheet or a backed-up Drive copy.
+Research/generation work needs no other external services — Claude Code's own web tools handle
+audits, and the Calendly and Google Drive MCP connectors already authorized in this environment
+handle campaigns (no new API keys for either). CSV export (per audit) matches the Business
+Visibility Auditor Google Sheets schema exactly, so it imports cleanly into a master sheet or a
+backed-up Drive copy.
+
+On Vercel, set the same `DATABASE_URL` as a project environment variable — see the "Vercel hosts
+the cockpit" note above for what that does and doesn't mean.
