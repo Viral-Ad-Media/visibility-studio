@@ -11,14 +11,14 @@ export async function POST(req: Request) {
   const target = Math.min(Math.max(Number(body.target_count) || 10, 1), 50);
   const query = `${category} in ${location}`;
 
-  const audit = db
+  const audit = await db
     .prepare(
-      `INSERT INTO audits (query, category, location, target_count, notes)
+      `INSERT INTO vis_audits (query, category, location, target_count, notes)
        VALUES (?, ?, ?, ?, ?)`
     )
     .run(query, category, location, target, body.notes?.trim() || null);
 
-  db.prepare("INSERT INTO jobs (type, payload) VALUES ('run_audit', ?)").run(
+  await db.prepare("INSERT INTO vis_jobs (type, payload) VALUES ('run_audit', ?)").run(
     JSON.stringify({ audit_id: audit.lastInsertRowid })
   );
 

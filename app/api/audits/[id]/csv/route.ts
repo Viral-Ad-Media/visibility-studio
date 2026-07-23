@@ -1,7 +1,9 @@
 import { buildAuditCsv, auditCsvFilename } from "@/lib/csv";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const result = buildAuditCsv(Number(params.id));
+  const result = await buildAuditCsv(Number(params.id));
   if (!result) return new Response("not found", { status: 404 });
 
   return new Response(result.csv, {

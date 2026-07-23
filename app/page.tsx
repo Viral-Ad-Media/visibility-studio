@@ -11,20 +11,20 @@ const STATUS_STYLES: Record<string, string> = {
   error: "bg-red-500/10 text-red-400 border-red-500/30",
 };
 
-export default function Dashboard() {
-  const audits = db
-    .prepare("SELECT * FROM audits ORDER BY id DESC")
-    .all() as Audit[];
-  const counts = db
+export default async function Dashboard() {
+  const audits = (await db
+    .prepare("SELECT * FROM vis_audits ORDER BY id DESC")
+    .all()) as Audit[];
+  const counts = (await db
     .prepare(
       `SELECT audit_id,
               COUNT(*) AS total,
               SUM(CASE WHEN priority='High' THEN 1 ELSE 0 END) AS high,
               SUM(CASE WHEN email IS NOT NULL AND email != 'not found' THEN 1 ELSE 0 END) AS emails,
               SUM(CASE WHEN outreach_email IS NOT NULL THEN 1 ELSE 0 END) AS outreach
-       FROM businesses GROUP BY audit_id`
+       FROM vis_businesses GROUP BY audit_id`
     )
-    .all() as { audit_id: number; total: number; high: number; emails: number; outreach: number }[];
+    .all()) as { audit_id: number; total: number; high: number; emails: number; outreach: number }[];
   const byAudit = new Map(counts.map((c) => [c.audit_id, c]));
 
   return (

@@ -17,14 +17,16 @@ const STATUS_STYLES: Record<string, string> = {
   error: "bg-red-500/10 text-red-400 border-red-500/30",
 };
 
-export default function AuditPage({ params }: { params: { id: string } }) {
-  const audit = db
-    .prepare("SELECT * FROM audits WHERE id = ?")
-    .get(Number(params.id)) as Audit | undefined;
+export default async function AuditPage({ params }: { params: { id: string } }) {
+  const audit = (await db
+    .prepare("SELECT * FROM vis_audits WHERE id = ?")
+    .get(Number(params.id))) as Audit | undefined;
   if (!audit) notFound();
 
   const businesses = (
-    db.prepare("SELECT * FROM businesses WHERE audit_id = ? ORDER BY id").all(audit.id) as Business[]
+    (await db
+      .prepare("SELECT * FROM vis_businesses WHERE audit_id = ? ORDER BY id")
+      .all(audit.id)) as Business[]
   ).sort(
     (a, b) =>
       (PRIORITY_ORDER[a.priority ?? ""] ?? 3) - (PRIORITY_ORDER[b.priority ?? ""] ?? 3) ||

@@ -3,8 +3,8 @@ import SettingsForm from "@/components/SettingsForm";
 
 export const dynamic = "force-dynamic";
 
-export default function SettingsPage() {
-  const rows = db.prepare("SELECT key, value FROM settings").all() as {
+export default async function SettingsPage() {
+  const rows = (await db.prepare("SELECT key, value FROM vis_settings").all()) as {
     key: string;
     value: string;
   }[];

@@ -16,8 +16,8 @@ type Row = Campaign & {
   in_flight: number;
 };
 
-export default function CampaignsPage() {
-  const campaigns = db
+export default async function CampaignsPage() {
+  const campaigns = (await db
     .prepare(
       `SELECT c.*, a.query AS audit_query,
               COUNT(cb.id) AS total,
@@ -28,13 +28,13 @@ export default function CampaignsPage() {
               SUM(CASE WHEN cb.stage='Booked' THEN 1 ELSE 0 END) AS booked,
               SUM(CASE WHEN cb.stage='Won' THEN 1 ELSE 0 END) AS won,
               SUM(CASE WHEN cb.redesign_status IN ('pending','running') OR cb.booking_status IN ('pending','running') THEN 1 ELSE 0 END) AS in_flight
-       FROM campaigns c
-       LEFT JOIN campaign_businesses cb ON cb.campaign_id = c.id
-       LEFT JOIN audits a ON a.id = c.audit_id
+       FROM vis_campaigns c
+       LEFT JOIN vis_campaign_businesses cb ON cb.campaign_id = c.id
+       LEFT JOIN vis_audits a ON a.id = c.audit_id
        GROUP BY c.id
        ORDER BY c.id DESC`
     )
-    .all() as Row[];
+    .all()) as Row[];
 
   const anyInFlight = campaigns.some((c) => c.in_flight > 0);
 

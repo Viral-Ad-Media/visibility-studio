@@ -18,14 +18,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "select at least one business" }, { status: 400 });
   }
 
-  const audit = db.prepare("SELECT id FROM audits WHERE id = ?").get(auditId);
+  const audit = await db.prepare("SELECT id FROM vis_audits WHERE id = ?").get(auditId);
   if (!audit) return NextResponse.json({ error: "audit not found" }, { status: 404 });
 
-  const rows = db
+  const rows = (await db
     .prepare(
-      `SELECT id FROM businesses WHERE audit_id = ? AND id IN (${businessIds.map(() => "?").join(",")})`
+      `SELECT id FROM vis_businesses WHERE audit_id = ? AND id IN (${businessIds.map(() => "?").join(",")})`
     )
-    .all(auditId, ...businessIds) as { id: number }[];
+    .all(auditId, ...businessIds)) as { id: number }[];
   if (rows.length !== businessIds.length) {
     return NextResponse.json(
       { error: "one or more businesses do not belong to this audit" },
@@ -33,19 +33,19 @@ export async function POST(req: Request) {
     );
   }
 
-  const campaignId = db.transaction(() => {
-    const campaign = db
-      .prepare("INSERT INTO campaigns (audit_id, name) VALUES (?, ?)")
+  const campaignId = await db.transaction(async (tx) => {
+    const campaign = await tx
+      .prepare("INSERT INTO vis_campaigns (audit_id, name) VALUES (?, ?)")
       .run(auditId, name);
     const id = campaign.lastInsertRowid as number;
 
-    const insertCb = db.prepare(
-      "INSERT INTO campaign_businesses (campaign_id, business_id) VALUES (?, ?)"
+    const insertCb = tx.prepare(
+      "INSERT INTO vis_campaign_businesses (campaign_id, business_id) VALUES (?, ?)"
     );
-    const insertJob = db.prepare("INSERT INTO jobs (type, payload) VALUES (?, ?)");
+    const insertJob = tx.prepare("INSERT INTO vis_jobs (type, payload) VALUES (?, ?)");
 
     for (const businessId of businessIds) {
-      const cb = insertCb.run(id, businessId);
+      const cb = await insertCb.run(id, businessId);
       const campaignBusinessId = cb.lastInsertRowid as number;
       const payload = JSON.stringify({
         audit_id: auditId,
@@ -53,11 +53,11 @@ export async function POST(req: Request) {
         campaign_business_id: campaignBusinessId,
         business_id: businessId,
       });
-      insertJob.run("build_redesign", payload);
-      insertJob.run("create_booking_link", payload);
+      await insertJob.run("build_redesign", payload);
+      await insertJob.run("create_booking_link", payload);
     }
     return id;
-  })();
+  });
 
   return NextResponse.json({ id: campaignId });
 }

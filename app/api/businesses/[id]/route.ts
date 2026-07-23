@@ -8,8 +8,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!(CRM_STATUSES as readonly string[]).includes(status)) {
     return NextResponse.json({ error: "invalid crm_status" }, { status: 400 });
   }
-  const info = db
-    .prepare("UPDATE businesses SET crm_status=?, updated_at=datetime('now') WHERE id=?")
+  const info = await db
+    .prepare("UPDATE vis_businesses SET crm_status=?, updated_at=now()::text WHERE id=?")
     .run(status, id);
   if (info.changes === 0) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json({ ok: true });

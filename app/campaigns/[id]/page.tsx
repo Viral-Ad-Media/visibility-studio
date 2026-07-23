@@ -7,17 +7,17 @@ import DeleteCampaignButton from "@/components/DeleteCampaignButton";
 
 export const dynamic = "force-dynamic";
 
-export default function CampaignPage({ params }: { params: { id: string } }) {
-  const campaign = db
-    .prepare("SELECT * FROM campaigns WHERE id = ?")
-    .get(Number(params.id)) as Campaign | undefined;
+export default async function CampaignPage({ params }: { params: { id: string } }) {
+  const campaign = (await db
+    .prepare("SELECT * FROM vis_campaigns WHERE id = ?")
+    .get(Number(params.id))) as Campaign | undefined;
   if (!campaign) notFound();
 
-  const audit = db
-    .prepare("SELECT id, query FROM audits WHERE id = ?")
-    .get(campaign.audit_id) as { id: number; query: string } | undefined;
+  const audit = (await db
+    .prepare("SELECT id, query FROM vis_audits WHERE id = ?")
+    .get(campaign.audit_id)) as { id: number; query: string } | undefined;
 
-  const rows = db
+  const rows = (await db
     .prepare(
       `SELECT cb.id, cb.campaign_id, cb.business_id, cb.stage,
               cb.redesign_status, cb.redesign_error, cb.redesign_drive_url,
@@ -25,12 +25,12 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
               cb.created_at, cb.updated_at,
               b.name, b.category, b.location, b.website, b.maps_url, b.phone, b.email,
               b.priority, b.outreach_subject, b.outreach_email
-       FROM campaign_businesses cb
-       JOIN businesses b ON b.id = cb.business_id
+       FROM vis_campaign_businesses cb
+       JOIN vis_businesses b ON b.id = cb.business_id
        WHERE cb.campaign_id = ?
        ORDER BY cb.id`
     )
-    .all(campaign.id) as CampaignBusinessRow[];
+    .all(campaign.id)) as CampaignBusinessRow[];
 
   const inFlight = rows.some(
     (r) =>

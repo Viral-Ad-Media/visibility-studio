@@ -6,19 +6,19 @@ import db from "@/lib/db";
 // job like every other piece of real work in this app.
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
-  const audit = db.prepare("SELECT id FROM audits WHERE id = ?").get(id);
+  const audit = await db.prepare("SELECT id FROM vis_audits WHERE id = ?").get(id);
   if (!audit) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const open = db
+  const open = await db
     .prepare(
-      `SELECT id FROM jobs
+      `SELECT id FROM vis_jobs
        WHERE type='backup_audit_csv' AND status IN ('pending','running')
-         AND json_extract(payload, '$.audit_id') = ?`
+         AND (payload::json->>'audit_id')::bigint = ?`
     )
     .get(id);
   if (open) return NextResponse.json({ ok: true, already_queued: true });
 
-  db.prepare("INSERT INTO jobs (type, payload) VALUES ('backup_audit_csv', ?)").run(
+  await db.prepare("INSERT INTO vis_jobs (type, payload) VALUES ('backup_audit_csv', ?)").run(
     JSON.stringify({ audit_id: id })
   );
   return NextResponse.json({ ok: true });

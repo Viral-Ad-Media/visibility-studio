@@ -41,15 +41,17 @@ function cell(v: unknown): string {
 
 // Shared by app/api/audits/[id]/csv/route.ts (browser download) and
 // scripts/engine.ts (Drive backup) so the schema only lives in one place.
-export function buildAuditCsv(auditId: number): { csv: string; audit: Audit } | null {
-  const audit = db.prepare("SELECT * FROM audits WHERE id = ?").get(auditId) as
+export async function buildAuditCsv(
+  auditId: number
+): Promise<{ csv: string; audit: Audit } | null> {
+  const audit = (await db.prepare("SELECT * FROM vis_audits WHERE id = ?").get(auditId)) as
     | Audit
     | undefined;
   if (!audit) return null;
 
-  const businesses = db
-    .prepare("SELECT * FROM businesses WHERE audit_id = ? ORDER BY id")
-    .all(auditId) as Business[];
+  const businesses = (await db
+    .prepare("SELECT * FROM vis_businesses WHERE audit_id = ? ORDER BY id")
+    .all(auditId)) as Business[];
   businesses.sort(
     (a, b) =>
       (PRIORITY_ORDER[a.priority ?? ""] ?? 3) - (PRIORITY_ORDER[b.priority ?? ""] ?? 3) ||

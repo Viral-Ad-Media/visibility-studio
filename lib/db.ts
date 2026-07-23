@@ -1,127 +1,138 @@
-import Database from "better-sqlite3";
-import path from "path";
-import fs from "fs";
+import { Pool, types, type PoolClient } from "pg";
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS audits (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  query TEXT NOT NULL,
-  category TEXT NOT NULL,
-  location TEXT NOT NULL,
-  target_count INTEGER NOT NULL DEFAULT 10,
-  notes TEXT,
-  status TEXT NOT NULL DEFAULT 'queued',
-  summary_md TEXT,
-  error TEXT,
-  csv_drive_url TEXT,
-  csv_drive_backed_up_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+// pg returns BIGINT/COUNT/SUM results as strings by default (to avoid silent
+// precision loss past Number.MAX_SAFE_INTEGER) — none of this app's counts
+// get remotely close to that, so parse them as numbers like better-sqlite3
+// always did. OID 20 = int8/bigint, the type COUNT(*)/SUM(int) come back as.
+types.setTypeParser(20, (val) => parseInt(val, 10));
 
-CREATE TABLE IF NOT EXISTS businesses (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  audit_id INTEGER NOT NULL REFERENCES audits(id),
-  name TEXT NOT NULL,
-  category TEXT,
-  location TEXT,
-  website TEXT,
-  maps_url TEXT,
-  phone TEXT,
-  email TEXT,
-  rating TEXT,
-  review_count TEXT,
-  source_urls_json TEXT,
-  homepage_headline TEXT,
-  main_cta TEXT,
-  seo_score INTEGER,
-  conversion_score INTEGER,
-  trust_score INTEGER,
-  opportunity_score INTEGER,
-  priority TEXT,
-  visibility_issues TEXT,
-  website_improvements TEXT,
-  local_seo_opportunities TEXT,
-  content_opportunities TEXT,
-  outreach_angle TEXT,
-  outreach_subject TEXT,
-  outreach_email TEXT,
-  audit_notes TEXT,
-  crm_status TEXT NOT NULL DEFAULT 'New',
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+/**
+ * Postgres-backed replacement for the old local better-sqlite3 file. Table
+ * names are prefixed `vis_` (this app shares a Supabase project with other
+ * unrelated apps — see CLAUDE.md). Schema lives in Supabase migrations, not
+ * here; there is no local schema-bootstrap step anymore.
+ *
+ * This is a thin compatibility layer over `pg` that keeps the same
+ * `db.prepare(sql).get/.all/.run(...)` shape the rest of the app already
+ * uses (ported from better-sqlite3) — every call site just needed `await`
+ * added, not a full query rewrite. It supports the same two parameter
+ * styles the app's SQL already uses:
+ *   - positional `?` placeholders, args passed positionally: `.get(id)`
+ *   - named `@word` placeholders, args passed as one object: `.run({id, name})`
+ * (never mixed within one query — the app doesn't do that.)
+ *
+ * `run()` on an INSERT without an explicit RETURNING clause has one auto
+ * behind the scenes: `RETURNING id` is appended so `.lastInsertRowid` keeps
+ * working the same way it did with better-sqlite3.
+ */
 
-CREATE TABLE IF NOT EXISTS campaigns (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  audit_id INTEGER NOT NULL REFERENCES audits(id),
-  name TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-CREATE TABLE IF NOT EXISTS campaign_businesses (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
-  business_id INTEGER NOT NULL REFERENCES businesses(id),
-  stage TEXT NOT NULL DEFAULT 'Selected',
-  redesign_status TEXT NOT NULL DEFAULT 'pending',
-  redesign_html TEXT,
-  redesign_error TEXT,
-  booking_status TEXT NOT NULL DEFAULT 'pending',
-  booking_link TEXT,
-  booking_event_type TEXT,
-  booking_error TEXT,
-  redesign_drive_url TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(campaign_id, business_id)
-);
+type Row = Record<string, any>;
+type RunResult = { changes: number; lastInsertRowid: number | undefined };
 
-CREATE TABLE IF NOT EXISTS jobs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  type TEXT NOT NULL,
-  payload TEXT NOT NULL DEFAULT '{}',
-  status TEXT NOT NULL DEFAULT 'pending',
-  result TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+function toPositional(sql: string): { text: string; kind: "named" | "positional" | "none" } {
+  if (/@[a-zA-Z_]\w*/.test(sql)) return { text: sql, kind: "named" };
+  if (sql.includes("?")) return { text: sql, kind: "positional" };
+  return { text: sql, kind: "none" };
+}
 
-CREATE TABLE IF NOT EXISTS settings (
-  key TEXT PRIMARY KEY,
-  value TEXT
-);
-`;
+function compileNamed(sql: string): { text: string; names: string[] } {
+  const names: string[] = [];
+  const text = sql.replace(/@([a-zA-Z_]\w*)/g, (_m, name) => {
+    names.push(name);
+    return `$${names.length}`;
+  });
+  return { text, names };
+}
 
-// Lightweight, idempotent migrations for columns added after a table already
-// existed — CREATE TABLE IF NOT EXISTS above doesn't retrofit existing tables.
-function migrate(db: Database.Database) {
-  function addColumnIfMissing(table: string, column: string, ddl: string) {
-    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-    if (!cols.some((c) => c.name === column)) {
-      db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+function compilePositional(sql: string): string {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+function maybeAddReturningId(sql: string): { text: string; addedReturning: boolean } {
+  const isInsert = /^\s*insert/i.test(sql);
+  const hasReturning = /returning/i.test(sql);
+  if (isInsert && !hasReturning) {
+    return { text: `${sql.replace(/;\s*$/, "")} RETURNING id`, addedReturning: true };
+  }
+  return { text: sql, addedReturning: false };
+}
+
+function bindArgs(sql: string, args: unknown[]): { text: string; values: unknown[] } {
+  const { kind } = toPositional(sql);
+  if (kind === "named") {
+    const obj = (args[0] ?? {}) as Record<string, unknown>;
+    const { text, names } = compileNamed(sql);
+    return { text, values: names.map((n) => obj[n]) };
+  }
+  if (kind === "positional") {
+    const values = args.length === 1 && Array.isArray(args[0]) ? (args[0] as unknown[]) : args;
+    return { text: compilePositional(sql), values };
+  }
+  return { text: sql, values: [] };
+}
+
+class Stmt {
+  constructor(private sql: string, private runner: Pool | PoolClient) {}
+
+  async get(...args: unknown[]): Promise<Row | undefined> {
+    const { text, values } = bindArgs(this.sql, args);
+    const res = await this.runner.query(text, values);
+    return res.rows[0];
+  }
+
+  async all(...args: unknown[]): Promise<Row[]> {
+    const { text, values } = bindArgs(this.sql, args);
+    const res = await this.runner.query(text, values);
+    return res.rows;
+  }
+
+  async run(...args: unknown[]): Promise<RunResult> {
+    const { text, values } = bindArgs(this.sql, args);
+    const { text: finalText } = maybeAddReturningId(text);
+    const res = await this.runner.query(finalText, values);
+    return { changes: res.rowCount ?? 0, lastInsertRowid: res.rows[0]?.id };
+  }
+}
+
+class Db {
+  constructor(private runner: Pool | PoolClient) {}
+
+  prepare(sql: string): Stmt {
+    return new Stmt(sql, this.runner);
+  }
+
+  async exec(sql: string): Promise<void> {
+    await this.runner.query(sql);
+  }
+
+  // Mirrors better-sqlite3's db.transaction(fn) shape closely enough for
+  // this app's two call sites: pass an async callback that receives a
+  // transaction-scoped `db`-like object (same .prepare().get/all/run API,
+  // all queries share one connection/transaction).
+  async transaction<T>(fn: (tx: Db) => Promise<T>): Promise<T> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const tx = new Db(client);
+      const result = await fn(tx);
+      await client.query("COMMIT");
+      return result;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
     }
   }
-  addColumnIfMissing("audits", "csv_drive_url", "csv_drive_url TEXT");
-  addColumnIfMissing("audits", "csv_drive_backed_up_at", "csv_drive_backed_up_at TEXT");
-  addColumnIfMissing("campaign_businesses", "redesign_drive_url", "redesign_drive_url TEXT");
 }
 
-function open(): Database.Database {
-  const dataDir = path.join(process.cwd(), "data");
-  fs.mkdirSync(dataDir, { recursive: true });
-  const db = new Database(path.join(dataDir, "visibility.db"));
-  db.pragma("journal_mode = WAL");
-  db.exec(SCHEMA);
-  migrate(db);
-  return db;
-}
-
-// Cache across Next.js dev hot reloads so we don't leak handles.
-const globalForDb = globalThis as unknown as { __visibilityDb?: Database.Database };
-const db = globalForDb.__visibilityDb ?? open();
-globalForDb.__visibilityDb = db;
+const db = new Db(pool);
 
 export default db;
 
