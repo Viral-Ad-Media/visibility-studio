@@ -1,0 +1,19 @@
+# dependencies
+/node_modules
+
+# next.js build output
+/.next/
+tsconfig.tsbuildinfo
+
+# local SQLite database — real audited business data, not source, stays local
+/data/*.db
+/data/*.db-shm
+/data/*.db-wal
+
+# env / secrets (this app doesn't use any today, but never commit them)
+.env
+.env.local
+.env*.local
+
+# OS cruft
+.DS_Store
