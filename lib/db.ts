@@ -1,4 +1,30 @@
+import fs from "fs";
+import path from "path";
 import { Pool, types, type PoolClient } from "pg";
+
+// Next.js auto-loads .env.local for `next dev`/`build`/`start`, but the
+// standalone `tsx scripts/engine.ts` CLI has no such magic — load it here,
+// once, without overwriting anything a real environment (e.g. Vercel, or
+// Next's own loader) already set.
+(function loadDotEnvLocal() {
+  const envPath = path.join(process.cwd(), ".env.local");
+  if (!fs.existsSync(envPath)) return;
+  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+})();
 
 // pg returns BIGINT/COUNT/SUM results as strings by default (to avoid silent
 // precision loss past Number.MAX_SAFE_INTEGER) — none of this app's counts
@@ -26,9 +52,18 @@ types.setTypeParser(20, (val) => parseInt(val, 10));
  * working the same way it did with better-sqlite3.
  */
 
+// `max` is deliberately small: DATABASE_URL currently points at Supabase's
+// direct connection (port 5432), not the pgbouncer/Supavisor pooler (6543)
+// — that pooler wasn't reachable when this was set up (see CLAUDE.md). A
+// direct connection has a real, much lower ceiling on total concurrent
+// connections than a pooled one, and Vercel can run many function instances
+// at once, each with their own Pool — keeping `max` low here bounds how much
+// of that ceiling any single instance can claim. Safe to raise once/if the
+// app is pointed back at the pooler.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
+  max: 3,
 });
 
 type Row = Record<string, any>;

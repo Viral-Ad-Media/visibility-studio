@@ -31,7 +31,7 @@ export default async function CampaignsPage() {
        FROM vis_campaigns c
        LEFT JOIN vis_campaign_businesses cb ON cb.campaign_id = c.id
        LEFT JOIN vis_audits a ON a.id = c.audit_id
-       GROUP BY c.id
+       GROUP BY c.id, a.query
        ORDER BY c.id DESC`
     )
     .all()) as Row[];
