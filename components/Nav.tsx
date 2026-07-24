@@ -5,25 +5,25 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings } from "lucide-react";
 
 const links = [
-  { href: "/", label: "Audits", icon: LayoutDashboard },
-  { href: "/new", label: "New audit", icon: SearchCheck },
-  { href: "/campaigns", label: "Campaigns", icon: Megaphone },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/app", label: "Audits", icon: LayoutDashboard },
+  { href: "/app/new", label: "New audit", icon: SearchCheck },
+  { href: "/app/campaigns", label: "Campaigns", icon: Megaphone },
+  { href: "/app/settings", label: "Settings", icon: Settings },
 ];
 
 export default function Nav() {
   const pathname = usePathname();
   return (
     <nav className="w-56 shrink-0 border-r border-ink-700 bg-ink-900 p-4 flex flex-col gap-1">
-      <div className="flex items-center gap-2 px-2 py-3 mb-4">
+      <Link href="/" className="flex items-center gap-2 px-2 py-3 mb-4">
         <Radar className="w-6 h-6 text-indigo-400" />
         <div>
           <div className="font-bold text-slate-100 leading-tight">Visibility Studio</div>
           <div className="text-[11px] text-slate-500 leading-tight">prospect audit engine</div>
         </div>
-      </div>
+      </Link>
       {links.map(({ href, label, icon: Icon }) => {
-        const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+        const active = href === "/app" ? pathname === "/app" : pathname.startsWith(href);
         return (
           <Link
             key={href}

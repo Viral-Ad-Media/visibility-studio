@@ -17,7 +17,7 @@ export default function DeleteCampaignButton({ campaignId }: { campaignId: numbe
     }
     setBusy(true);
     await fetch(`/api/campaigns/${campaignId}`, { method: "DELETE" });
-    router.push("/campaigns");
+    router.push("/app/campaigns");
     router.refresh();
   }
 

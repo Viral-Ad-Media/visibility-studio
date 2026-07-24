@@ -33,7 +33,7 @@ export default async function Dashboard() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-slate-100">Audits</h1>
         <Link
-          href="/new"
+          href="/app/new"
           className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg"
         >
           New audit
@@ -51,7 +51,7 @@ export default async function Dashboard() {
         {audits.map((a) => {
           const c = byAudit.get(a.id);
           return (
-            <Link key={a.id} href={`/audit/${a.id}`} className="card p-5 flex items-center gap-4 hover:border-ink-600 transition-colors block">
+            <Link key={a.id} href={`/app/audit/${a.id}`} className="card p-5 flex items-center gap-4 hover:border-ink-600 transition-colors block">
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-slate-100">{a.query}</div>
                 <div className="text-xs text-slate-500 mt-1">

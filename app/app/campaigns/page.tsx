@@ -56,7 +56,7 @@ export default async function CampaignsPage() {
         {campaigns.map((c) => (
           <Link
             key={c.id}
-            href={`/campaigns/${c.id}`}
+            href={`/app/campaigns/${c.id}`}
             className="card p-5 flex items-center gap-4 hover:border-ink-600 transition-colors block"
           >
             <div className="flex-1 min-w-0">

@@ -42,7 +42,7 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
       {inProgress && <AutoRefresh />}
       <div className="flex items-start justify-between gap-4 mb-1">
         <div>
-          <Link href="/" className="text-xs text-slate-500 hover:text-slate-300">
+          <Link href="/app" className="text-xs text-slate-500 hover:text-slate-300">
             ← All audits
           </Link>
           <h1 className="text-2xl font-bold text-slate-100 mt-1">{audit.query}</h1>

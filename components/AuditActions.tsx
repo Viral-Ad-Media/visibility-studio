@@ -63,7 +63,7 @@ export default function AuditActions({ audit }: Props) {
       setError((await res.json()).error ?? "Failed to delete");
       return;
     }
-    router.push("/");
+    router.push("/app");
     router.refresh();
   }
 

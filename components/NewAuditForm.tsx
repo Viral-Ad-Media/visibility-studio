@@ -27,7 +27,7 @@ export default function NewAuditForm() {
       return;
     }
     const { id } = await res.json();
-    router.push(`/audit/${id}`);
+    router.push(`/app/audit/${id}`);
   }
 
   const input =

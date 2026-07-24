@@ -45,7 +45,7 @@ export default async function CampaignPage({ params }: { params: { id: string } 
       {inFlight && <AutoRefresh />}
       <div className="flex items-start justify-between gap-4 mb-1">
         <div>
-          <Link href="/campaigns" className="text-xs text-slate-500 hover:text-slate-300">
+          <Link href="/app/campaigns" className="text-xs text-slate-500 hover:text-slate-300">
             ← All campaigns
           </Link>
           <h1 className="text-2xl font-bold text-slate-100 mt-1">{campaign.name}</h1>
@@ -53,7 +53,7 @@ export default async function CampaignPage({ params }: { params: { id: string } 
             {audit && (
               <>
                 from{" "}
-                <Link href={`/audit/${audit.id}`} className="hover:text-slate-300">
+                <Link href={`/app/audit/${audit.id}`} className="hover:text-slate-300">
                   &ldquo;{audit.query}&rdquo;
                 </Link>{" "}
                 ·{" "}

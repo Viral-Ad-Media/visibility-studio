@@ -15,6 +15,15 @@ does web research, or calls Calendly/Drive — that only happens when a human ru
 locally with `DATABASE_URL` pointed at the same Supabase database the deployed app uses. The UI is
 shared; the engine invocation is not.
 
+## Routes
+
+The app root is a **public marketing site** (`app/(marketing)/` route group — `/`, `/about`,
+`/pricing`, `/faq`, `/terms`), pitching Visibility Studio as a product. It has its own layout
+(`MarketingNav` + `MarketingFooter`, no sidebar) and is fully static — none of it touches the
+database. The actual cockpit (audits, campaigns, settings — everything that used to live at `/`)
+now lives under **`/app/*`** (`app/app/`), with its own layout carrying the sidebar `Nav`. Don't
+add cockpit pages back at the root, and don't add marketing pages under `/app`.
+
 ## The skills
 
 | Skill | Trigger | What it does |

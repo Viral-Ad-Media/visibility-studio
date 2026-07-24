@@ -37,7 +37,7 @@ export default function CreateCampaignBar({
     }
     const { id } = await res.json();
     onCreated();
-    router.push(`/campaigns/${id}`);
+    router.push(`/app/campaigns/${id}`);
   }
 
   return (
