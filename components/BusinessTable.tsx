@@ -18,7 +18,7 @@ function Score({ label, value }: { label: string; value: number | null }) {
   return (
     <div className="text-center">
       <div
-        className={`text-lg font-bold ${
+        className={`tabular text-lg font-bold ${
           value == null
             ? "text-slate-600"
             : value >= 4
@@ -97,7 +97,7 @@ function Row({
           type="checkbox"
           checked={selected}
           onChange={onToggle}
-          className="w-4 h-4 rounded border-ink-600 bg-ink-800 text-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 shrink-0"
+          className="w-4 h-4 rounded border-ink-600 bg-ink-800 text-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 shrink-0"
           aria-label={`Select ${b.name}`}
         />
         <button
@@ -198,7 +198,7 @@ function Row({
           {b.outreach_email && (
             <div className="bg-ink-950 border border-ink-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-[11px] font-semibold text-sky-400 uppercase tracking-wide">
+                <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wide">
                   Outreach draft{b.outreach_subject ? ` — ${b.outreach_subject}` : ""}
                 </div>
                 <CopyButton

@@ -32,10 +32,11 @@ export default function NewAuditForm() {
 
   const input =
     "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-    "placeholder:text-slate-600 focus:outline-none focus:border-sky-500";
+    "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 " +
+    "focus:ring-2 focus:ring-indigo-500/30";
 
   return (
-    <form onSubmit={submit} className="card p-6 space-y-4">
+    <form onSubmit={submit} className="card p-6 space-y-4 animate-fade-in-up">
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5">
@@ -87,12 +88,12 @@ export default function NewAuditForm() {
       {error && <div className="text-sm text-red-400">{error}</div>}
       <button
         disabled={busy}
-        className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg"
+        className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg"
       >
         {busy ? "Queuing…" : "Queue audit"}
       </button>
       <p className="text-[11px] text-slate-600">
-        The audit runs when you run <code className="text-sky-500">/run-audits</code> in Claude
+        The audit runs when you run <code className="text-indigo-500">/run-audits</code> in Claude
         Code from this project folder.
       </p>
     </form>

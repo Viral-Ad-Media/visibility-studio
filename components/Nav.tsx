@@ -16,7 +16,7 @@ export default function Nav() {
   return (
     <nav className="w-56 shrink-0 border-r border-ink-700 bg-ink-900 p-4 flex flex-col gap-1">
       <div className="flex items-center gap-2 px-2 py-3 mb-4">
-        <Radar className="w-6 h-6 text-sky-400" />
+        <Radar className="w-6 h-6 text-indigo-400" />
         <div>
           <div className="font-bold text-slate-100 leading-tight">Visibility Studio</div>
           <div className="text-[11px] text-slate-500 leading-tight">prospect audit engine</div>
@@ -41,8 +41,8 @@ export default function Nav() {
       })}
       <div className="mt-auto px-3 py-3 text-[11px] text-slate-600 leading-relaxed">
         Engine: Claude Code drains the jobs queue — run{" "}
-        <code className="text-sky-500">/run-audits</code> or{" "}
-        <code className="text-sky-500">/run-campaigns</code> in this folder.
+        <code className="text-indigo-500">/run-audits</code> or{" "}
+        <code className="text-indigo-500">/run-campaigns</code> in this folder.
       </div>
     </nav>
   );

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 const STATUS_STYLES: Record<string, string> = {
   queued: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  running: "bg-sky-500/10 text-sky-400 border-sky-500/30",
+  running: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
   ready: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
   error: "bg-red-500/10 text-red-400 border-red-500/30",
 };
@@ -34,7 +34,7 @@ export default async function Dashboard() {
         <h1 className="text-2xl font-bold text-slate-100">Audits</h1>
         <Link
           href="/new"
-          className="bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium px-4 py-2 rounded-lg"
+          className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg"
         >
           New audit
         </Link>
@@ -42,7 +42,7 @@ export default async function Dashboard() {
 
       {audits.length === 0 && (
         <div className="card p-10 text-center text-slate-400">
-          No audits yet. Queue one, then run <code className="text-sky-400">/run-audits</code> in
+          No audits yet. Queue one, then run <code className="text-indigo-400">/run-audits</code> in
           Claude Code to execute it.
         </div>
       )}
@@ -65,10 +65,10 @@ export default async function Dashboard() {
               {c && (
                 <div className="text-xs text-slate-400 text-right shrink-0">
                   <div>
-                    <span className="text-slate-200 font-medium">{c.total}</span> businesses ·{" "}
-                    <span className="text-red-400 font-medium">{c.high}</span> high priority
+                    <span className="tabular text-slate-200 font-medium">{c.total}</span> businesses ·{" "}
+                    <span className="tabular text-red-400 font-medium">{c.high}</span> high priority
                   </div>
-                  <div className="mt-0.5">
+                  <div className="mt-0.5 tabular">
                     {c.emails} emails · {c.outreach} outreach drafts
                   </div>
                 </div>

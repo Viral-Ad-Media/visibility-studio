@@ -7,7 +7,19 @@ body {
 }
 
 .card {
-  @apply bg-ink-900 border border-ink-700 rounded-xl;
+  @apply bg-ink-900 border border-ink-700 rounded-xl transition-colors duration-200;
+}
+
+.tabular {
+  @apply font-mono tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .markdown {
@@ -15,17 +27,17 @@ body {
 }
 .markdown h1 { @apply text-2xl font-bold text-slate-100 mt-8 mb-3; }
 .markdown h2 { @apply text-xl font-bold text-slate-100 mt-8 mb-3 pb-2 border-b border-ink-700; }
-.markdown h3 { @apply text-lg font-semibold text-sky-400 mt-6 mb-2; }
+.markdown h3 { @apply text-lg font-semibold text-indigo-400 mt-6 mb-2; }
 .markdown h4 { @apply text-base font-semibold text-slate-100 mt-4 mb-2; }
 .markdown p { @apply my-3; }
 .markdown ul, .markdown ol { @apply my-3 pl-6 space-y-1; }
 .markdown ul { @apply list-disc; }
 .markdown ol { @apply list-decimal; }
 .markdown strong { @apply text-slate-100; }
-.markdown a { @apply text-sky-400 underline underline-offset-2; }
+.markdown a { @apply text-indigo-400 underline underline-offset-2; }
 .markdown hr { @apply my-6 border-ink-700; }
-.markdown blockquote { @apply border-l-2 border-sky-500 pl-4 my-4 text-slate-400 italic; }
-.markdown code { @apply bg-ink-800 px-1.5 py-0.5 rounded text-sm text-sky-300; }
+.markdown blockquote { @apply border-l-2 border-indigo-500 pl-4 my-4 text-slate-400 italic; }
+.markdown code { @apply bg-ink-800 px-1.5 py-0.5 rounded text-sm text-indigo-300; }
 .markdown table { @apply w-full my-4 text-sm; }
 .markdown th { @apply text-left border-b border-ink-600 px-3 py-2 text-slate-100; }
 .markdown td { @apply border-b border-ink-800 px-3 py-2; }

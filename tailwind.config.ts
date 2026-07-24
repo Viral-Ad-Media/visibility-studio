@@ -9,12 +9,25 @@ const config: Config = {
     extend: {
       colors: {
         ink: {
-          950: "#0a0e14",
-          900: "#0f1420",
-          800: "#161d2e",
-          700: "#1f2940",
-          600: "#2b3a5c",
+          950: "#08090f",
+          900: "#0e0f1a",
+          800: "#151726",
+          700: "#212437",
+          600: "#33374f",
         },
+      },
+      fontFamily: {
+        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+      },
+      keyframes: {
+        "fade-in-up": {
+          "0%": { opacity: "0", transform: "translateY(6px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+      },
+      animation: {
+        "fade-in-up": "fade-in-up 0.3s ease-out",
       },
     },
   },

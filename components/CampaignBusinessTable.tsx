@@ -23,7 +23,7 @@ const PRIORITY_STYLES: Record<string, string> = {
 
 const JOB_STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  running: "bg-sky-500/10 text-sky-400 border-sky-500/30",
+  running: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
   ready: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
   error: "bg-red-500/10 text-red-400 border-red-500/30",
 };
@@ -182,7 +182,7 @@ function Row({ r }: { r: CampaignBusinessRow }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-ink-950 border border-ink-700 rounded-lg p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-[11px] font-semibold text-sky-400 uppercase tracking-wide">
+                <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wide">
                   Redesign mockup
                 </div>
                 <JobBadge label="Mockup" status={r.redesign_status} />
@@ -224,7 +224,7 @@ function Row({ r }: { r: CampaignBusinessRow }) {
 
             <div className="bg-ink-950 border border-ink-700 rounded-lg p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-[11px] font-semibold text-sky-400 uppercase tracking-wide">
+                <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wide">
                   Booking link
                 </div>
                 <JobBadge label="Link" status={r.booking_status} />
@@ -235,7 +235,7 @@ function Row({ r }: { r: CampaignBusinessRow }) {
                     href={r.booking_link}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-sky-400 hover:underline truncate"
+                    className="text-xs text-indigo-400 hover:underline truncate"
                   >
                     {r.booking_link}
                   </a>
@@ -263,7 +263,7 @@ function Row({ r }: { r: CampaignBusinessRow }) {
           {readyToSendEmail && (
             <div className="bg-ink-950 border border-ink-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-[11px] font-semibold text-sky-400 uppercase tracking-wide">
+                <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wide">
                   Ready-to-send email
                   {r.booking_status !== "ready" && (
                     <span className="text-slate-500 normal-case font-normal">

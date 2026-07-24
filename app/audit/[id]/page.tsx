@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 const STATUS_STYLES: Record<string, string> = {
   queued: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  running: "bg-sky-500/10 text-sky-400 border-sky-500/30",
+  running: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
   ready: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
   error: "bg-red-500/10 text-red-400 border-red-500/30",
 };
@@ -106,7 +106,7 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
         <div className="mt-6 card p-10 text-center text-slate-400 text-sm">
           {audit.status === "queued" ? (
             <>
-              Waiting for the engine — run <code className="text-sky-400">/run-audits</code> in
+              Waiting for the engine — run <code className="text-indigo-400">/run-audits</code> in
               Claude Code from this project folder.
             </>
           ) : (

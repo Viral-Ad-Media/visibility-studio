@@ -66,7 +66,7 @@ export default async function CampaignsPage() {
                 {c.created_at.slice(0, 10)}
               </div>
             </div>
-            <div className="text-xs text-slate-400 text-right shrink-0">
+            <div className="text-xs text-slate-400 text-right shrink-0 tabular">
               <div>
                 <span className="text-slate-200 font-medium">{c.redesigns_ready}</span>/{c.total}{" "}
                 mockups ·{" "}
@@ -80,7 +80,7 @@ export default async function CampaignsPage() {
               </div>
             </div>
             {c.in_flight > 0 && (
-              <span className="text-xs px-2.5 py-1 rounded-full border shrink-0 bg-sky-500/10 text-sky-400 border-sky-500/30">
+              <span className="text-xs px-2.5 py-1 rounded-full border shrink-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
                 generating
               </span>
             )}
