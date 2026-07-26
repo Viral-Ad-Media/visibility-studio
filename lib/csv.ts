@@ -1,4 +1,4 @@
-import db from "./db";
+import defaultDb, { type Db } from "./db";
 import type { Audit, Business } from "./shared";
 import { PRIORITY_ORDER } from "./shared";
 
@@ -39,17 +39,19 @@ function cell(v: unknown): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-// Shared by app/api/audits/[id]/csv/route.ts (browser download) and
-// scripts/engine.ts (Drive backup) so the schema only lives in one place.
+// Shared by app/api/audits/[id]/csv/route.ts (browser download, impersonated
+// `db` by default) and scripts/engine.ts (CLI context, no browser session —
+// pass `serviceDb` explicitly) so the schema only lives in one place.
 export async function buildAuditCsv(
-  auditId: number
+  auditId: number,
+  database: Db = defaultDb
 ): Promise<{ csv: string; audit: Audit } | null> {
-  const audit = (await db.prepare("SELECT * FROM vis_audits WHERE id = ?").get(auditId)) as
+  const audit = (await database.prepare("SELECT * FROM vis_audits WHERE id = ?").get(auditId)) as
     | Audit
     | undefined;
   if (!audit) return null;
 
-  const businesses = (await db
+  const businesses = (await database
     .prepare("SELECT * FROM vis_businesses WHERE audit_id = ? ORDER BY id")
     .all(auditId)) as Business[];
   businesses.sort(

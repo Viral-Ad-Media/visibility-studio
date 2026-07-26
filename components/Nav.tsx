@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings } from "lucide-react";
+import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings, LogOut } from "lucide-react";
+import { logout } from "@/app/(auth)/actions";
 
 const links = [
   { href: "/app", label: "Audits", icon: LayoutDashboard },
@@ -39,10 +40,18 @@ export default function Nav() {
           </Link>
         );
       })}
-      <div className="mt-auto px-3 py-3 text-[11px] text-slate-600 leading-relaxed">
-        Engine: Claude Code drains the jobs queue — run{" "}
-        <code className="text-indigo-500">/run-audits</code> or{" "}
-        <code className="text-indigo-500">/run-campaigns</code> in this folder.
+      <div className="mt-auto space-y-3">
+        <form action={logout}>
+          <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-ink-800 hover:text-slate-200">
+            <LogOut className="w-4 h-4" />
+            Log out
+          </button>
+        </form>
+        <div className="px-3 pb-1 text-[11px] text-slate-600 leading-relaxed">
+          Engine: Claude Code drains the jobs queue — run{" "}
+          <code className="text-indigo-500">/run-audits</code> or{" "}
+          <code className="text-indigo-500">/run-campaigns</code> in this folder.
+        </div>
       </div>
     </nav>
   );

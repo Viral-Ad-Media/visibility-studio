@@ -1,13 +1,13 @@
-import db from "@/lib/db";
+import db, { getCurrentAccountId } from "@/lib/db";
 import SettingsForm from "@/components/SettingsForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const rows = (await db.prepare("SELECT key, value FROM vis_settings").all()) as {
-    key: string;
-    value: string;
-  }[];
+  const accountId = await getCurrentAccountId();
+  const rows = (await db
+    .prepare("SELECT key, value FROM vis_settings WHERE account_id = ?")
+    .all(accountId)) as { key: string; value: string }[];
   const settings = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
   return (

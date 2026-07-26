@@ -9,7 +9,8 @@
  *   npm run engine -- complete <jobId> [--content <file>] [--meta <file.json>]
  *   npm run engine -- fail <jobId> --message "<why>"
  *
- * Talks to Postgres (Supabase) via lib/db.ts — set DATABASE_URL before running.
+ * Talks to Postgres (Supabase) via lib/db.ts — set DATABASE_URL and
+ * VIS_OPERATOR_ACCOUNT_ID before running.
  *
  * `add-business` meta is one JSON object of business fields (see FIELDS below).
  * Dedupe: normalized website within the audit, falling back to name+location.
@@ -22,10 +23,21 @@
  *                           meta may optionally add {drive_url} once it's backed up to Drive.
  *   create_booking_link  — meta is {booking_link, booking_event_type}.
  *   backup_audit_csv     — meta is {drive_url} (required) once the CSV is uploaded to Drive.
+ *
+ * This CLI has no browser session to impersonate, so it runs against
+ * `serviceDb` (the raw, full-privilege connection — RLS doesn't apply here)
+ * and is responsible for its own tenant scoping via VIS_OPERATOR_ACCOUNT_ID,
+ * rather than relying on Postgres RLS the way the app's own routes do.
  */
 import fs from "fs";
-import db from "../lib/db";
+import { serviceDb as db } from "../lib/db";
 import { buildAuditCsv } from "../lib/csv";
+
+const OPERATOR_ACCOUNT_ID = Number(process.env.VIS_OPERATOR_ACCOUNT_ID);
+if (!OPERATOR_ACCOUNT_ID) {
+  console.error("VIS_OPERATOR_ACCOUNT_ID must be set (see .env.local)");
+  process.exit(1);
+}
 
 const FIELDS = [
   "name",
@@ -168,12 +180,16 @@ async function main() {
 
   if (cmd === "pending") {
     const jobs = await db
-      .prepare("SELECT * FROM vis_jobs WHERE status IN ('pending','running') ORDER BY id")
-      .all();
+      .prepare(
+        "SELECT * FROM vis_jobs WHERE status IN ('pending','running') AND account_id = ? ORDER BY id"
+      )
+      .all(OPERATOR_ACCOUNT_ID);
     out(await Promise.all(jobs.map(jobContext)));
   } else if (cmd === "claim") {
     const id = Number(process.argv[3]);
-    const job = (await db.prepare("SELECT * FROM vis_jobs WHERE id = ?").get(id)) as any;
+    const job = (await db
+      .prepare("SELECT * FROM vis_jobs WHERE id = ? AND account_id = ?")
+      .get(id, OPERATOR_ACCOUNT_ID)) as any;
     if (!job) {
       console.error(`No job ${id}`);
       process.exit(1);
@@ -206,7 +222,9 @@ async function main() {
     out(await jobContext({ ...job, status: "running" }));
   } else if (cmd === "add-business") {
     const auditId = Number(process.argv[3]);
-    const audit = await db.prepare("SELECT id FROM vis_audits WHERE id = ?").get(auditId);
+    const audit = await db
+      .prepare("SELECT id FROM vis_audits WHERE id = ? AND account_id = ?")
+      .get(auditId, OPERATOR_ACCOUNT_ID);
     if (!audit) {
       console.error(`No audit ${auditId}`);
       process.exit(1);
@@ -214,7 +232,7 @@ async function main() {
     await upsertBusiness(auditId, readMeta(true));
   } else if (cmd === "export-csv") {
     const auditId = Number(process.argv[3]);
-    const result = await buildAuditCsv(auditId);
+    const result = await buildAuditCsv(auditId, db);
     if (!result) {
       console.error(`No audit ${auditId}`);
       process.exit(1);
@@ -222,7 +240,9 @@ async function main() {
     process.stdout.write(result.csv);
   } else if (cmd === "complete") {
     const id = Number(process.argv[3]);
-    const job = (await db.prepare("SELECT * FROM vis_jobs WHERE id = ?").get(id)) as any;
+    const job = (await db
+      .prepare("SELECT * FROM vis_jobs WHERE id = ? AND account_id = ?")
+      .get(id, OPERATOR_ACCOUNT_ID)) as any;
     if (!job) {
       console.error(`No job ${id}`);
       process.exit(1);
@@ -299,7 +319,9 @@ async function main() {
   } else if (cmd === "fail") {
     const id = Number(process.argv[3]);
     const message = arg("--message") ?? "unknown error";
-    const job = (await db.prepare("SELECT * FROM vis_jobs WHERE id = ?").get(id)) as any;
+    const job = (await db
+      .prepare("SELECT * FROM vis_jobs WHERE id = ? AND account_id = ?")
+      .get(id, OPERATOR_ACCOUNT_ID)) as any;
     if (!job) {
       console.error(`No job ${id}`);
       process.exit(1);
