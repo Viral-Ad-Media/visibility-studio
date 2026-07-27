@@ -197,11 +197,22 @@ export class Db {
 // --- Impersonated (default export): every query runs as the current
 // logged-in user, RLS-scoped for real. ---
 
-const getRequestUserId = cache(async (): Promise<string> => {
-  const { data, error } = await supabaseServerClient().auth.getUser();
-  if (error || !data.user) throw new UnauthenticatedDbAccessError();
-  return data.user.id;
-});
+// `cache()` is only valid inside a Next.js request (it needs the React
+// server-components dispatcher, which doesn't exist in a plain `tsx` CLI
+// process). Building the cached wrapper lazily — on first actual use —
+// means the standalone engine CLI (which only ever imports `serviceDb`)
+// never touches this at all and can't crash on it at module load.
+let cachedGetRequestUserId: (() => Promise<string>) | undefined;
+function getRequestUserId(): Promise<string> {
+  if (!cachedGetRequestUserId) {
+    cachedGetRequestUserId = cache(async (): Promise<string> => {
+      const { data, error } = await supabaseServerClient().auth.getUser();
+      if (error || !data.user) throw new UnauthenticatedDbAccessError();
+      return data.user.id;
+    });
+  }
+  return cachedGetRequestUserId();
+}
 
 async function setImpersonation(client: { query: (text: string, values?: unknown[]) => Promise<any> }) {
   const userId = await getRequestUserId();
