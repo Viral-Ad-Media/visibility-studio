@@ -32,40 +32,13 @@
 import fs from "fs";
 import { serviceDb as db } from "../lib/db";
 import { buildAuditCsv } from "../lib/csv";
+import { upsertBusiness as upsertBusinessRow } from "../lib/business-upsert";
 
 const OPERATOR_ACCOUNT_ID = Number(process.env.VIS_OPERATOR_ACCOUNT_ID);
 if (!OPERATOR_ACCOUNT_ID) {
   console.error("VIS_OPERATOR_ACCOUNT_ID must be set (see .env.local)");
   process.exit(1);
 }
-
-const FIELDS = [
-  "name",
-  "category",
-  "location",
-  "website",
-  "maps_url",
-  "phone",
-  "email",
-  "rating",
-  "review_count",
-  "source_urls_json",
-  "homepage_headline",
-  "main_cta",
-  "seo_score",
-  "conversion_score",
-  "trust_score",
-  "opportunity_score",
-  "priority",
-  "visibility_issues",
-  "website_improvements",
-  "local_seo_opportunities",
-  "content_opportunities",
-  "outreach_angle",
-  "outreach_subject",
-  "outreach_email",
-  "audit_notes",
-] as const;
 
 function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(flag);
@@ -104,49 +77,14 @@ function readContent(required = false): string | null {
   return fs.readFileSync(contentPath, "utf8");
 }
 
-function normalizeWebsite(url: string | null | undefined): string | null {
-  if (!url || url === "not found") return null;
-  return url
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/^www\./, "")
-    .replace(/\/+$/, "");
-}
-
 async function upsertBusiness(auditId: number, meta: any) {
   if (!meta.name) {
     console.error("business meta must include at least {name}");
     process.exit(1);
   }
-  const rows = (await db
-    .prepare("SELECT id, name, location, website FROM vis_businesses WHERE audit_id = ?")
-    .all(auditId)) as any[];
-  const site = normalizeWebsite(meta.website);
-  const existing = rows.find((r) =>
-    site
-      ? normalizeWebsite(r.website) === site
-      : r.name?.toLowerCase() === meta.name.toLowerCase() &&
-        (r.location ?? "").toLowerCase() === (meta.location ?? "").toLowerCase()
-  );
-
-  const values: Record<string, unknown> = {};
-  for (const f of FIELDS) values[f] = meta[f] ?? null;
-
-  if (existing) {
-    const sets = FIELDS.map((f) => `${f}=COALESCE(@${f}, ${f})`).join(", ");
-    await db
-      .prepare(`UPDATE vis_businesses SET ${sets}, updated_at=now()::text WHERE id=@id`)
-      .run({ ...values, id: existing.id });
-    out({ ok: true, business_id: existing.id, updated: true });
-    return existing.id;
-  }
-  const cols = ["audit_id", ...FIELDS].join(", ");
-  const params = ["@audit_id", ...FIELDS.map((f) => `@${f}`)].join(", ");
-  const info = await db
-    .prepare(`INSERT INTO vis_businesses (${cols}) VALUES (${params})`)
-    .run({ ...values, audit_id: auditId });
-  out({ ok: true, business_id: info.lastInsertRowid, created: true });
-  return info.lastInsertRowid;
+  const { id, created } = await upsertBusinessRow(auditId, meta, db);
+  out({ ok: true, business_id: id, created, updated: !created });
+  return id;
 }
 
 async function jobContext(job: any) {

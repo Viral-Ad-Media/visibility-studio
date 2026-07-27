@@ -1,0 +1,104 @@
+{
+  "build": {
+  },
+  "cliPackageVersion": "4.5.7",
+  "config": {
+    "dirs": [
+      "./trigger"
+    ],
+    "project": "proj_chjzexdxabbzcdkuzbyl"
+  },
+  "configPath": "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/trigger.config.mjs",
+  "contentHash": "fdb741c1f6ca7cb527a4accb1577301d",
+  "customConditions": [
+  ],
+  "deploy": {
+    "env": {
+    }
+  },
+  "environment": "dev",
+  "externals": [
+    {
+      "name": "import-in-the-middle",
+      "version": "3.3.2"
+    }
+  ],
+  "files": [
+    {
+      "entry": "trigger/helloWorld.ts",
+      "out": "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/trigger/helloWorld.mjs"
+    }
+  ],
+  "indexWorkerEntryPoint": "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/node_modules/trigger.dev/dist/esm/entryPoints/dev-index-worker.mjs",
+  "otelImportHook": {
+    "include": [
+    ]
+  },
+  "outputHashes": {
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-244PAGAH.mjs": "MKUfkr/RxtE",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-244PAGAH.mjs.map": "5cjM5D5eV/w",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-2ANEVEYB.mjs": "3uHY8Wr3Fls",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-2ANEVEYB.mjs.map": "i+1++FpagqE",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-D3TXVDOZ.mjs": "qWA/VeqtyrE",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-D3TXVDOZ.mjs.map": "F9FuH0FYsUA",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-DHADIA3R.mjs": "4pGLJiEkng0",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-DHADIA3R.mjs.map": "5MmBxezu70A",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-NB3XQE7O.mjs": "zax3t8jXUJs",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-NB3XQE7O.mjs.map": "uV5m44DlFDs",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-NHUSUXLY.mjs": "cSAMTqIB8y0",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-NHUSUXLY.mjs.map": "5aB85TIpN5Y",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-SN76735S.mjs": "ZU5AXGg73Qg",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-SN76735S.mjs.map": "tJml6KF9V4c",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-USHNXJ63.mjs": "RkI7ln77K/4",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-USHNXJ63.mjs.map": "LMPzUuAiOIM",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-W6E5Q5TY.mjs": "YnG2+vSnUtc",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/chunk-W6E5Q5TY.mjs.map": "Oo2DrdbfGd8",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/crypto.node-FURLATZW.mjs": "zGJ8Kk+9yxY",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/crypto.node-FURLATZW.mjs.map": "0b4tlwmkM3g",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/esm-NUWTWICG.mjs": "UjRQPDYTd2I",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/esm-NUWTWICG.mjs.map": "VON93E1In1A",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-bsd-4T4IHQHS.mjs": "55YOCSt0eF8",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-bsd-4T4IHQHS.mjs.map": "a+ojhatqxdQ",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-darwin-7HJQGT4I.mjs": "79G23J6GVmQ",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-darwin-7HJQGT4I.mjs.map": "+IB6rybrE78",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-linux-Z65YT226.mjs": "2BnyXEaKbTA",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-linux-Z65YT226.mjs.map": "gLCTHdQ0lc4",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-unsupported-WGZGXDR6.mjs": "yVsGhhppy5k",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-unsupported-WGZGXDR6.mjs.map": "Ny6hJ0CVZTg",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-win-AUIVDZN5.mjs": "eHMJ8yApJ6E",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/getMachineId-win-AUIVDZN5.mjs.map": "V5cCd6OL6VU",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/node_modules/trigger.dev/dist/esm/entryPoints/dev-index-worker.mjs": "UIpuJLx49bI",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/node_modules/trigger.dev/dist/esm/entryPoints/dev-index-worker.mjs.map": "9odT/gnQ+7Y",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/node_modules/trigger.dev/dist/esm/entryPoints/dev-run-worker.mjs": "OTRRzsiIvy4",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/node_modules/trigger.dev/dist/esm/entryPoints/dev-run-worker.mjs.map": "kzCTrYFD4Dk",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/s2s-X2G4OGS3.mjs": "ABwullWxxDA",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/s2s-X2G4OGS3.mjs.map": "wpjYAYzKPHM",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/trigger.config.mjs": "cNr9fXw29I0",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/trigger.config.mjs.map": "XCTtaNTB4gI",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/trigger/helloWorld.mjs": "8fxvQa13nxE",
+    "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/trigger/helloWorld.mjs.map": "zy9zLQYvmnc"
+  },
+  "outputPath": "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK",
+  "packageVersion": "4.5.7",
+  "runWorkerEntryPoint": "/Users/macbookpro/Documents/www/visibility-studio/.trigger/tmp/build-Bmy0fK/node_modules/trigger.dev/dist/esm/entryPoints/dev-run-worker.mjs",
+  "runtime": "node",
+  "sources": {
+    "package.json": {
+      "contentHash": "809bc2499b1aed876b22851c9f3ee204",
+      "contents": "eJxtkk1y2zAMhfc6BUfrCCYpuXayyiLnyAwtIi4am+IQlOo0k7tnROqvrXfk+0C8NwA/CyFKZ65YPolyIKYTXSh+VBx7S135MOIBA1PnxgoJCmRWfaDBxPFdDD0midtAPnL5JD4LIYQoLQ7jK4e3KMbzQ5ZPPV3sAvJtQhxNiAtKN1F5UddSziXozuRS3sg3MXnusgqRy0KIrxTHokdn0bWEm0zPxsWfofPUVoZ2bN/HTq8SlNrD4vHMvTcnw7hjDnOBhvoOnw7VL051GpSScFwKY6DzGQNYHBazBvZwmCsufUsWq4CmjZNTc9hEuZrwjmlar0qDBD2DcUJZbkCDXiz9OalH0HrtsrZXR6hB/aVXtrveYX+6bFuD3sPhx3aww8v92cYPj7xzncU8jHWgmazZJPzLthHvoU3KGZs+dj7gG90wb0lJaGB19R3HlnnybKB5nEk0dPlNzs60hgbUspPN0v5fWOTbJKrH9UekoOkvJrhP0yq+im+ua+Cx"
+    },
+    "trigger.config.ts": {
+      "contentHash": "a5f1c198936baa4200c2ba9b73fe6140",
+      "contents": "eJxlUEGK20AQvOsVhU4bImwnvo0vWbKwGBLIIbcQQkvTkmc96hEzPYrWiyGPyAvzkiDZXgg5TU9VV3V3uX4IUfECy60T/hikdR3OaGPoUX7Q6LqO48ryuE72uB635a4oeFpEllvKXv+R3r0UwBDDEzdqUM7Vj+bwdOLJTlTXp8Ye86l+9mVVADGLup4NSgmWF8iH7hOP7A1KH7oFWq/xyMIx5IQ6K+qQxbLFn1+/QahzcsIpgbJ1ioYETsbgR0bikSP5i0Viis3hbcvaHBBnC2h0Q9pBDy7BpdmLmmPSMIA6cpIUNK9IP+kZPoThYlTnKE463H/ZIw0stoIEBQl4GrhRtpAQe/KwOZK6IKsC6Gl6uH4NtpvNfJh1MRl8K1fra8zl9yUV1ug4GcxRAixUe7Z7eeDRoCWfuFqIa/y3vmXGvSr3gyaDbXVDnXx1PYese/mcDN5tLtOviv+4V7KlRkM0eH8DIokNvTuxgcZ83eI8P+eqOL/ZFX8BRJm8/A=="
+    },
+    "trigger/helloWorld.ts": {
+      "contentHash": "c5aede80d1ed4cf211134dabd1a182e0",
+      "contents": "eJxNkbGO2zAMhnc/xY9MNuo4QzcHV/TuunQobkiBzjqJtlXLYkBRSYPA717ITdEuEiCK30f98suZRXGHmjRjxSC8YPdZxY8jSefockhuPlw+7o5VdTjgLdKehwHnkJd3H0fYiezcw3IcvCwJOhG+/+suhUhWPUfUZ+GfZBVCAz4UWiIrpJjp1sBYzSaEG64scwJFB+Vte6eBhWC5GIvTK65eJ5jCWHJQv9csEa/BZEdQ5rDPiRCYzx1OZihncBRICRwtQXJ8zs7rwZT1JScfKaWCM0K4kPjBk9tG8XHsKvq1xWQ5JsVEIfAPluDwtOVW3yvAux67rbS/ltqurVA8PUy6RYv6bG6Bjetxx0IpmZF6JJXyoLXB0ycUCjYHB+oCj/X/vD8/JDmWCHYtHrjmuHUJbQncwXMPlUwtyE5M7ttf1eN+93C3EBOftUekK74YpbrplL+e3k7bSHWDtZDXtlqbY/Ub8Fu78w=="
+    },
+    "tsconfig.json": {
+      "contentHash": "1b472675188d3d4392b147db24ce9467",
+      "contents": "eJxdUctqwzAQvPsrlj2a1L77VCg9NDQEeg2myNbSqNELSXZdjP+9rBKXOCetZkazu6O5AMDeGa80haNPytmIDcwFAABq1WEDJ5TO4A74qFSiIDpNfKdoaUrY7q5qobX72fPzFAa6gfGi/LvqXs7UXx6YFFSftph1r0Y9YBQPTg6a3myi4PyWNJnC5n+YDf5B0emBl2JFN1ipKaySwORI++jsYXW5c1bRaZFIXrmHrb7jxI4+UKQw0mqpbB/IkE1Cb/VeD18qJ3uaAa0weeQ8MCxrfl6kcw4f8Lkuc/BVXWILSwGwsIgb6EFS5vj1E9mxklWK/B1lWZfbcuK6YmGdfj3FepXklkjTnZuT9Gluu7bFUvwBwNudgg=="
+    }
+  },
+  "target": "dev"
+}
