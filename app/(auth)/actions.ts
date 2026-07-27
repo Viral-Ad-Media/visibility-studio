@@ -46,6 +46,9 @@ export async function createAccount(formData: FormData) {
   if (!name) {
     redirect("/onboarding?error=" + encodeURIComponent("Account name is required"));
   }
-  await db.prepare("SELECT vis_create_account_with_owner(@name) AS id").get({ name });
+  // Explicit cast: pg sends bare params with no type OID ("unknown"), and a
+  // direct function call (unlike an INSERT/UPDATE) has no column to infer
+  // the type from, so Postgres can't resolve the overload without a hint.
+  await db.prepare("SELECT vis_create_account_with_owner(@name::text) AS id").get({ name });
   redirect("/app");
 }
