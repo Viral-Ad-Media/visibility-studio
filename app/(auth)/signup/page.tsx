@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signup } from "../actions";
+import PasswordInput from "@/components/PasswordInput";
 
 const input =
   "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
@@ -17,7 +18,7 @@ export default function SignupPage({ searchParams }: { searchParams: { error?: s
       </div>
       <div>
         <label className="block text-xs font-medium text-slate-400 mb-1.5">Password</label>
-        <input className={input} type="password" name="password" required minLength={6} />
+        <PasswordInput className={input} name="password" required minLength={6} />
       </div>
       <button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
         Sign up
