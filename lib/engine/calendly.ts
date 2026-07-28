@@ -76,6 +76,8 @@ export async function saveConnection(accountId: number, code: string): Promise<v
   const user = await getCurrentUser(tokens.access_token);
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
 
+  // Explicit RETURNING account_id — lib/db.ts auto-appends "RETURNING id" to
+  // any bare INSERT, but this table's primary key is account_id, not id.
   await db
     .prepare(
       `INSERT INTO vis_calendly_connections
@@ -84,7 +86,8 @@ export async function saveConnection(accountId: number, code: string): Promise<v
        ON CONFLICT (account_id) DO UPDATE SET
          access_token=@access_token, refresh_token=@refresh_token, token_expires_at=@token_expires_at,
          calendly_user_uri=@calendly_user_uri, calendly_organization_uri=@calendly_organization_uri,
-         calendly_name=@calendly_name, updated_at=now()::text`
+         calendly_name=@calendly_name, updated_at=now()::text
+       RETURNING account_id`
     )
     .run({
       account_id: accountId,
