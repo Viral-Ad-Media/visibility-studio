@@ -48,9 +48,8 @@ export default function Nav() {
           </button>
         </form>
         <div className="px-3 pb-1 text-[11px] text-slate-600 leading-relaxed">
-          Engine: Claude Code drains the jobs queue — run{" "}
-          <code className="text-indigo-500">/run-audits</code> or{" "}
-          <code className="text-indigo-500">/run-campaigns</code> in this folder.
+          Audits run automatically. Campaigns still need{" "}
+          <code className="text-indigo-500">/run-campaigns</code> in Claude Code.
         </div>
       </div>
     </nav>

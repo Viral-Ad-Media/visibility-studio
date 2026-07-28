@@ -1,19 +1,50 @@
 # Visibility Studio
 
-Business-visibility audit studio. The Next.js app is the visual cockpit — deployed on Vercel, with
-a Postgres database on Supabase — and **Claude Code is the engine**, run locally against that same
-remote database, draining the `jobs` queue in two phases. Phase 1 audits businesses using live web
-research (WebSearch/WebFetch/browser) and the Business Visibility Auditor methodology
-(`anthropic-skills:business-visibility-auditor` — invoke it when available; `/run-audits` embeds
-the load-bearing rules as a fallback). Phase 2 turns a selection of audited businesses into a
-**campaign**: a coded homepage redesign mockup and a real Calendly booking link per business,
-tracked through a manual pipeline up to the point of sending (sending stays a human action, outside
-this app).
+Multi-tenant business-visibility audit SaaS. The Next.js app (deployed on Vercel) is the visual
+cockpit; **Supabase (Postgres + Auth) is the database**, with every tenant-owned table scoped by
+Row Level Security via `account_id`. Audits (`run_audit`/`audit_business` jobs) are handled by
+**an automated Anthropic-API-based worker** (`lib/engine/*`) that drains `vis_jobs` the instant a
+row is inserted — no human runs anything. Campaigns (`build_redesign`/`create_booking_link`
+jobs — turning a selection of audited businesses into a coded homepage redesign mockup + a real
+Calendly booking link per business) are still **human-run via Claude Code** (`/run-campaigns`);
+that's Phase C scope, not yet automated. Sending outreach stays a human action either way, outside
+this app.
 
-**Vercel hosts the cockpit; it does not run the engine.** Nothing on Vercel drains the jobs queue,
-does web research, or calls Calendly/Drive — that only happens when a human runs Claude Code
-locally with `DATABASE_URL` pointed at the same Supabase database the deployed app uses. The UI is
-shared; the engine invocation is not.
+## The automated engine
+
+`run_audit`/`audit_business` jobs process automatically, near-instantly, with no human trigger:
+
+- **Trigger**: a Postgres trigger on `vis_jobs` (`on_vis_job_inserted`, via the `pg_net` extension)
+  POSTs to `app/api/engine/run` the instant a row is inserted. A `pg_cron` job
+  (`vis-engine-drain-backstop`, every minute, Postgres-side — not gated by any Vercel plan's
+  cron-frequency limit) calls the same endpoint as a backstop, driving forward audits and
+  reclaiming anything that died mid-run. Both configured via the Supabase MCP's `apply_migration`
+  (migration `vis_engine_automation`).
+- **Auth**: the route checks an `x-engine-secret` header against `ENGINE_WEBHOOK_SECRET` — the
+  matching value lives in Supabase Vault (`vis_engine_webhook_url`/`vis_engine_webhook_secret`,
+  set via `execute_sql`, never committed to git).
+- **Processing**: `lib/engine/worker.ts` claims one job via the `vis_claim_job()` RPC (`SECURITY
+  DEFINER`, `FOR UPDATE SKIP LOCKED`), bounded to ~50s per invocation (`maxDuration = 60` on the
+  route). A `run_audit` job (`lib/engine/discover.ts`) discovers up to `target_count` candidate
+  businesses via the Claude API + `web_search`, then fans out one `audit_business` job row per
+  candidate — those get drained independently (and concurrently, across separate invocations) by
+  the same worker. Each `audit_business` job (`lib/engine/auditBusiness.ts`) researches one
+  business via `web_search`/`web_fetch`, then submits findings via a forced tool call
+  (`submit_business`, validated with `zod`) and upserts through the shared
+  `lib/business-upsert.ts` (also used by `scripts/engine.ts`, so the two paths can never diverge).
+  A job that fails is retried (via `vis_claim_job`'s staleness reclaim) up to 5 attempts
+  (`vis_jobs.attempts`) before being marked terminally `error`; a single business permanently
+  failing doesn't fail the whole audit. The last `audit_business` job for an audit to finish
+  triggers a **deterministic templated** `summary_md` (top opportunities, counts) — not another
+  Claude call — and marks the audit `ready`.
+- `scripts/engine.ts` (the old `/run-audits` CLI) still exists as a **manual/debug fallback** for
+  audits — useful for inspecting a job's context or manually driving/failing something stuck — but
+  it is no longer the primary path. It's still the *primary* path for campaigns (see below).
+
+**Vercel hosts the cockpit and the automated audit engine.** Campaign jobs
+(`build_redesign`/`create_booking_link`/`backup_audit_csv`) are *not* drained by anything on
+Vercel — those still require a human running Claude Code locally with `DATABASE_URL` pointed at
+the same Supabase database, via `/run-campaigns`.
 
 ## Routes
 
@@ -28,8 +59,8 @@ add cockpit pages back at the root, and don't add marketing pages under `/app`.
 
 | Skill | Trigger | What it does |
 |---|---|---|
-| `/run-audits` | after queuing an audit in the app | drains pending `run_audit` / `audit_business` jobs — finds businesses in the niche + location, audits each website, scrapes public contact emails, scores 1–5, drafts personalized outreach, and writes each business row back into the DB as it finishes |
-| `/run-campaigns` | after creating a campaign, or clicking "Back up to Drive" | drains pending `build_redesign` / `create_booking_link` / `backup_audit_csv` jobs — builds a self-contained HTML redesign mockup addressing that business's own findings, creates a real single-use Calendly booking link, and backs mockups/audit CSVs up to Google Drive |
+| `/run-audits` | manual/debug fallback only — audits now drain automatically, see "The automated engine" | drains pending `run_audit` / `audit_business` jobs by hand — finds businesses in the niche + location, audits each website, scrapes public contact emails, scores 1–5, drafts personalized outreach, and writes each business row back into the DB as it finishes |
+| `/run-campaigns` | after creating a campaign, or clicking "Back up to Drive" — still the primary path, not automated | drains pending `build_redesign` / `create_booking_link` / `backup_audit_csv` jobs — builds a self-contained HTML redesign mockup addressing that business's own findings, creates a real single-use Calendly booking link, and backs mockups/audit CSVs up to Google Drive |
 
 ## Database
 
@@ -58,7 +89,8 @@ table: `stage` is manual/user-only, never touched by the engine; `redesign_statu
 `redesign_drive_url` and `booking_status`/`booking_link`/`booking_event_type` are engine-owned),
 `vis_jobs` (the queue: pending → running → done/error), `vis_settings`.
 
-**Engine contract — always use the CLI, never hand-write SQL for queue mutations:**
+**CLI contract for campaign jobs (still human-run) and manual audit debugging — always use the
+CLI, never hand-write SQL for queue mutations:**
 
 ```bash
 npm run engine -- pending                                    # list pending jobs + context (JSON)
@@ -124,11 +156,19 @@ DATABASE_URL="postgres://..." npm run dev        # app on http://localhost:3300
 DATABASE_URL="postgres://..." npm run engine -- pending
 ```
 
-Research/generation work needs no other external services — Claude Code's own web tools handle
-audits, and the Calendly and Google Drive MCP connectors already authorized in this environment
-handle campaigns (no new API keys for either). CSV export (per audit) matches the Business
-Visibility Auditor Google Sheets schema exactly, so it imports cleanly into a master sheet or a
-backed-up Drive copy.
+Campaign research/generation needs no other external services when run via `/run-campaigns` —
+Claude Code's own web tools handle it, and the Calendly and Google Drive MCP connectors already
+authorized in this environment handle campaigns (no new API keys for either). CSV export (per
+audit) matches the Business Visibility Auditor Google Sheets schema exactly, so it imports cleanly
+into a master sheet or a backed-up Drive copy.
 
-On Vercel, set the same `DATABASE_URL` as a project environment variable — see the "Vercel hosts
-the cockpit" note above for what that does and doesn't mean.
+The automated audit engine additionally needs `ANTHROPIC_API_KEY` (a dedicated key with billing
+enabled — this makes real, metered Messages API calls including `web_search` at $10/1,000 calls)
+and `ENGINE_WEBHOOK_SECRET` (matches the value in Supabase Vault). **`pg_net` can't reach
+`localhost`**, so the trigger/cron only ever fire against the deployed Vercel URL — to test the
+engine locally, POST directly to `/api/engine/run` with the `x-engine-secret` header yourself,
+simulating what Supabase would call.
+
+On Vercel, set `DATABASE_URL`, `ANTHROPIC_API_KEY`, and `ENGINE_WEBHOOK_SECRET` as project
+environment variables — see the "Vercel hosts the cockpit and the automated audit engine" note
+above for what that does and doesn't mean.

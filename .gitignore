@@ -17,3 +17,7 @@ tsconfig.tsbuildinfo
 
 # OS cruft
 .DS_Store
+
+# Trigger.dev CLI runtime cache (Phase B used this, then got dropped for a
+# pg_net/pg_cron-based engine instead — never track this if it reappears)
+.trigger/

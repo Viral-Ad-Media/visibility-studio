@@ -1,11 +1,18 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Protects everything under /app/* (the cockpit) and /api/* (all 11 routes,
+// Protects everything under /app/* (the cockpit) and /api/* (all routes,
 // which have zero auth checks of their own by design — this is the single
 // place that gates them). Marketing pages under /(marketing) and the
 // /(auth) pages themselves are untouched (not matched below).
 export async function middleware(request: NextRequest) {
+  // The automated-engine webhook is called by Supabase (pg_net trigger + a
+  // pg_cron backstop), never by a logged-in browser — there's no Supabase
+  // session to check. It has its own shared-secret check (see the route).
+  if (request.nextUrl.pathname === "/api/engine/run") {
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
 
+// The insert below fires a Postgres trigger (pg_net) that POSTs to
+// /api/engine/run instantly — no application-side call needed. See CLAUDE.md
+// "The automated engine".
 export async function POST(req: Request) {
   const body = await req.json();
   const category = String(body.category ?? "").trim();

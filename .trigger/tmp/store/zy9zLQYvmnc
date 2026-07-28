@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../../trigger/helloWorld.ts"],
-  "sourcesContent": ["import { task } from \"@trigger.dev/sdk/v3\";\n\n// One-off plumbing check: confirms the Trigger.dev connection (project ref +\n// secret key) actually works end to end before combining it with a\n// multi-turn Claude tool-use loop. Safe to delete once runAudit/auditBusiness\n// are verified working.\nexport const helloWorld = task({\n  id: \"hello-world\",\n  run: async (payload: { message: string }) => {\n    console.log(\"hello-world task running\", payload);\n    return { ok: true, echoedMessage: payload.message, ranAt: new Date().toISOString() };\n  },\n});\n"],
-  "mappings": ";;;;;;;;;;;;;;AAAA;AAMO,IAAM,aAAa,KAAK;AAAA,EAC7B,IAAI;AAAA,EACJ,KAAK,8BAAO,YAAiC;AAC3C,YAAQ,IAAI,4BAA4B,OAAO;AAC/C,WAAO,EAAE,IAAI,MAAM,eAAe,QAAQ,SAAS,QAAO,oBAAI,KAAK,GAAE,YAAY,EAAE;AAAA,EACrF,GAHK;AAIP,CAAC;",
-  "names": []
-}

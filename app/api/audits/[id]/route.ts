@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import db, { Audit } from "@/lib/db";
 
-// Requeue an audit (e.g. after an error, or to top up businesses).
+// Requeue an audit (e.g. after an error, or to top up businesses). The
+// insert below fires a Postgres trigger (pg_net) that POSTs to
+// /api/engine/run instantly — no application-side call needed.
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
   const audit = await db.prepare("SELECT id FROM vis_audits WHERE id = ?").get(id);
@@ -22,6 +24,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   await db
     .prepare("UPDATE vis_audits SET status='queued', updated_at=now()::text WHERE id = ?")
     .run(id);
+
   return NextResponse.json({ ok: true });
 }
 
