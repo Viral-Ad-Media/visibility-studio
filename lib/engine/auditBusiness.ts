@@ -81,9 +81,13 @@ const SUBMIT_BUSINESS_TOOL: Anthropic.Messages.Tool = {
       audit_notes: { type: "string", description: "Caveats, blocked pages, assumptions" },
     },
     required: ["name", "source_urls"],
-    additionalProperties: false,
   },
-  strict: true,
+  // strict:true caused three separate compilation errors in a row (needs
+  // additionalProperties:false, rejects minimum/maximum, then "schema too
+  // complex" once combined with the research tools in the same call) — not
+  // worth it. The zod parse below already throws (failing the job, which
+  // retries) if the model omits a required field despite the schema/prompt
+  // asking for it, so strict mode isn't buying real correctness here.
 };
 
 const BusinessSubmission = z.object({
