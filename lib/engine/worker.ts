@@ -3,7 +3,6 @@ import { PRIORITY_ORDER, type Business } from "../shared";
 import { discoverCandidates } from "./discover";
 import { runAuditBusiness } from "./auditBusiness";
 
-const INVOCATION_BUDGET_MS = 240_000; // stay safely under maxDuration=300
 const MAX_ATTEMPTS = 5;
 
 type JobRow = {
@@ -153,29 +152,34 @@ async function failJob(job: JobRow, message: string) {
   }
 }
 
+// Deliberately processes at most one job per invocation, not a loop. A
+// single audit_business job (2 sequential Claude calls with web_search/
+// web_fetch tool loops) can itself take up to ~3 minutes — a prior version
+// that opportunistically started a second job whenever "budget" looked
+// available got killed mid-flight by Vercel's hard function-duration limit
+// when that first job had already used a large, unpredictable share of it.
+// This isn't a loss of throughput: every fanned-out audit_business INSERT
+// fires its own instant pg_net webhook (the trigger fires on any insert,
+// regardless of which connection performed it), so concurrency comes from
+// separate invocations, not from looping within one. The pg_cron backstop
+// drains anything left pending/stale the same way.
 export async function runWorkerLoop(): Promise<{ processed: number }> {
-  const start = Date.now();
-  let processed = 0;
+  const job = await claimJob();
+  if (!job) return { processed: 0 };
 
-  while (Date.now() - start < INVOCATION_BUDGET_MS) {
-    const job = await claimJob();
-    if (!job) break;
-
-    try {
-      if (job.type === "run_audit") {
-        await processRunAudit(job);
-      } else if (job.type === "audit_business") {
-        await processAuditBusiness(job);
-      } else {
-        await failJob(job, `Unknown job type: ${job.type}`);
-        continue;
-      }
-      processed++;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      await failJob(job, message);
+  try {
+    if (job.type === "run_audit") {
+      await processRunAudit(job);
+    } else if (job.type === "audit_business") {
+      await processAuditBusiness(job);
+    } else {
+      await failJob(job, `Unknown job type: ${job.type}`);
+      return { processed: 0 };
     }
+    return { processed: 1 };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await failJob(job, message);
+    return { processed: 0 };
   }
-
-  return { processed };
 }
