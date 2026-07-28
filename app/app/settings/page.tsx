@@ -1,5 +1,5 @@
 import db, { getCurrentAccountId } from "@/lib/db";
-import { getConnectionStatus } from "@/lib/engine/calendly";
+import { getConnectionStatus, listEventTypes, type CalendlyEventType } from "@/lib/engine/calendly";
 import SettingsForm from "@/components/SettingsForm";
 import CalendlyConnect from "@/components/CalendlyConnect";
 
@@ -15,6 +15,17 @@ export default async function SettingsPage() {
   ]);
   const settings = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
+  // Best-effort — a transient Calendly API hiccup shouldn't break the whole
+  // settings page, just fall back to an empty list.
+  let eventTypes: CalendlyEventType[] = [];
+  if (calendly.connected) {
+    try {
+      eventTypes = await listEventTypes(accountId);
+    } catch {
+      eventTypes = [];
+    }
+  }
+
   return (
     <div className="max-w-xl space-y-6">
       <div>
@@ -24,7 +35,7 @@ export default async function SettingsPage() {
         </p>
       </div>
       <CalendlyConnect connected={calendly.connected} name={calendly.name} />
-      <SettingsForm initial={settings} />
+      <SettingsForm initial={settings} eventTypes={eventTypes} calendlyConnected={calendly.connected} />
     </div>
   );
 }

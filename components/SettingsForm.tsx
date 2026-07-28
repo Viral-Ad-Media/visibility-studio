@@ -3,7 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function SettingsForm({ initial }: { initial: Record<string, string> }) {
+type EventType = { uri: string; name: string; duration: number };
+
+export default function SettingsForm({
+  initial,
+  eventTypes,
+  calendlyConnected,
+}: {
+  initial: Record<string, string>;
+  eventTypes: EventType[];
+  calendlyConnected: boolean;
+}) {
   const router = useRouter();
   const [calendlyEventTypeUri, setCalendlyEventTypeUri] = useState(
     initial.calendly_event_type_uri ?? ""
@@ -34,20 +44,31 @@ export default function SettingsForm({ initial }: { initial: Record<string, stri
   return (
     <form onSubmit={save} className="card p-6 space-y-4 animate-fade-in-up">
       <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          Calendly event type URI
-        </label>
-        <input
-          className={input}
-          value={calendlyEventTypeUri}
-          onChange={(e) => setCalendlyEventTypeUri(e.target.value)}
-          placeholder="https://api.calendly.com/event_types/…"
-        />
+        <label className="block text-xs font-medium text-slate-400 mb-1.5">Calendly event type</label>
+        {!calendlyConnected ? (
+          <p className="text-sm text-slate-500">Connect Calendly above to pick an event type.</p>
+        ) : eventTypes.length === 0 ? (
+          <p className="text-sm text-slate-500">
+            No active event types found on your connected Calendly account.
+          </p>
+        ) : (
+          <select
+            className={input}
+            value={calendlyEventTypeUri}
+            onChange={(e) => setCalendlyEventTypeUri(e.target.value)}
+          >
+            <option value="">Auto-pick (engine chooses the best match)</option>
+            {eventTypes.map((et) => (
+              <option key={et.uri} value={et.uri}>
+                {et.name} ({et.duration}min)
+              </option>
+            ))}
+          </select>
+        )}
         <p className="text-[11px] text-slate-600 mt-1.5">
-          Which Calendly event type booking links should use for campaign outreach. Leave blank
-          and the engine will use your first active event type automatically — set this if that
-          picks the wrong one. Find the URI via the connected Calendly account&apos;s
-          event-types list.
+          Which Calendly event type booking links should use for campaign outreach. Leave on
+          auto-pick and the engine will judge which of your event types fits a cold-outreach
+          discovery call — set this if that ever picks the wrong one.
         </p>
       </div>
       <button
