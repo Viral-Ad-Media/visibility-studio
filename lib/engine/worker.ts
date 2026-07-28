@@ -86,7 +86,7 @@ async function processRunAudit(job: JobRow) {
     .prepare("UPDATE vis_audits SET status='running', error=NULL, updated_at=now()::text WHERE id = ?")
     .run(auditId);
 
-  const { candidates, searchCallCount } = await discoverCandidates(auditId);
+  const { candidates, searchCallCount, estimatedCostUsd } = await discoverCandidates(auditId);
 
   if (!candidates.length) {
     const message = "No candidate businesses found for this niche + location";
@@ -105,7 +105,10 @@ async function processRunAudit(job: JobRow) {
     }
   });
 
-  await markDone(job.id, JSON.stringify({ search_call_count: searchCallCount, candidates: candidates.length }));
+  await markDone(
+    job.id,
+    JSON.stringify({ search_call_count: searchCallCount, candidates: candidates.length, estimated_cost_usd: estimatedCostUsd })
+  );
 }
 
 async function processAuditBusiness(job: JobRow) {
@@ -113,13 +116,21 @@ async function processAuditBusiness(job: JobRow) {
   const auditId = Number(payload.audit_id);
   if (!auditId) throw new Error(`audit_business job ${job.id} has no audit_id in its payload`);
 
-  const { businessId, created, searchCallCount } = await runAuditBusiness({
+  const { businessId, created, searchCallCount, estimatedCostUsd } = await runAuditBusiness({
     audit_id: auditId,
     name: payload.name,
     website: payload.website ?? null,
   });
 
-  await markDone(job.id, JSON.stringify({ business_id: businessId, created, search_call_count: searchCallCount }));
+  await markDone(
+    job.id,
+    JSON.stringify({
+      business_id: businessId,
+      created,
+      search_call_count: searchCallCount,
+      estimated_cost_usd: estimatedCostUsd,
+    })
+  );
   await maybeFinalizeAudit(auditId);
 }
 
@@ -136,14 +147,14 @@ async function processBuildRedesign(job: JobRow) {
     )
     .run(campaignBusinessId);
 
-  const html = await generateRedesign(campaignBusinessId);
+  const { html, estimatedCostUsd } = await generateRedesign(campaignBusinessId);
 
   await db
     .prepare(
       "UPDATE vis_campaign_businesses SET redesign_status='ready', redesign_error=NULL, redesign_html=?, updated_at=now()::text WHERE id = ?"
     )
     .run(html, campaignBusinessId);
-  await markDone(job.id, "ok");
+  await markDone(job.id, JSON.stringify({ estimated_cost_usd: estimatedCostUsd }));
 }
 
 async function processCreateBookingLink(job: JobRow) {
@@ -159,14 +170,14 @@ async function processCreateBookingLink(job: JobRow) {
     )
     .run(campaignBusinessId);
 
-  const { bookingLink, eventTypeName } = await createBookingLink(job.account_id);
+  const { bookingLink, eventTypeName, estimatedCostUsd } = await createBookingLink(job.account_id);
 
   await db
     .prepare(
       "UPDATE vis_campaign_businesses SET booking_status='ready', booking_error=NULL, booking_link=?, booking_event_type=?, updated_at=now()::text WHERE id = ?"
     )
     .run(bookingLink, eventTypeName, campaignBusinessId);
-  await markDone(job.id, "ok");
+  await markDone(job.id, JSON.stringify({ estimated_cost_usd: estimatedCostUsd }));
 }
 
 async function failJob(job: JobRow, message: string) {

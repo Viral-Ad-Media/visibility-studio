@@ -27,6 +27,21 @@ export default async function Dashboard() {
     .all()) as { audit_id: number; total: number; high: number; emails: number; outreach: number }[];
   const byAudit = new Map(counts.map((c) => [c.audit_id, c]));
 
+  // Estimated cost, summed from each audit's run_audit + audit_business jobs
+  // (lib/engine/worker.ts writes estimated_cost_usd into result on completion).
+  // Filtered to JSON-shaped results only — a job can fail with a plain-string
+  // message instead, which would blow up the ::json cast.
+  const costs = (await db
+    .prepare(
+      `SELECT (payload::json->>'audit_id')::bigint AS audit_id,
+              SUM(COALESCE((result::json->>'estimated_cost_usd')::numeric, 0)) AS cost
+       FROM vis_jobs
+       WHERE type IN ('run_audit','audit_business') AND result LIKE '{%'
+       GROUP BY 1`
+    )
+    .all()) as { audit_id: number; cost: number }[];
+  const costByAudit = new Map(costs.map((c) => [c.audit_id, Number(c.cost)]));
+
   return (
     <div>
       <AutoRefresh />
@@ -42,14 +57,14 @@ export default async function Dashboard() {
 
       {audits.length === 0 && (
         <div className="card p-10 text-center text-slate-400">
-          No audits yet. Queue one, then run <code className="text-indigo-400">/run-audits</code> in
-          Claude Code to execute it.
+          No audits yet. Queue one and it runs automatically — no need to run anything yourself.
         </div>
       )}
 
       <div className="space-y-3">
         {audits.map((a) => {
           const c = byAudit.get(a.id);
+          const cost = costByAudit.get(a.id);
           return (
             <Link key={a.id} href={`/app/audit/${a.id}`} className="card p-5 flex items-center gap-4 hover:border-ink-600 transition-colors block">
               <div className="flex-1 min-w-0">
@@ -72,6 +87,14 @@ export default async function Dashboard() {
                     {c.emails} emails · {c.outreach} outreach drafts
                   </div>
                 </div>
+              )}
+              {!!cost && (
+                <span
+                  className="text-xs text-slate-500 tabular shrink-0"
+                  title="Estimated Anthropic API cost"
+                >
+                  ~${cost.toFixed(2)}
+                </span>
               )}
               <span
                 className={`text-xs px-2.5 py-1 rounded-full border shrink-0 ${STATUS_STYLES[a.status]}`}

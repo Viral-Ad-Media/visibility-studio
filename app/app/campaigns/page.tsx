@@ -36,6 +36,22 @@ export default async function CampaignsPage() {
     )
     .all()) as Row[];
 
+  // Estimated cost, summed from each campaign's build_redesign +
+  // create_booking_link jobs (lib/engine/worker.ts writes estimated_cost_usd
+  // into result on completion). Filtered to JSON-shaped results only — a job
+  // can fail with a plain-string message instead, which would blow up the
+  // ::json cast.
+  const costs = (await db
+    .prepare(
+      `SELECT (payload::json->>'campaign_id')::bigint AS campaign_id,
+              SUM(COALESCE((result::json->>'estimated_cost_usd')::numeric, 0)) AS cost
+       FROM vis_jobs
+       WHERE type IN ('build_redesign','create_booking_link') AND result LIKE '{%'
+       GROUP BY 1`
+    )
+    .all()) as { campaign_id: number; cost: number }[];
+  const costByCampaign = new Map(costs.map((c) => [c.campaign_id, Number(c.cost)]));
+
   const anyInFlight = campaigns.some((c) => c.in_flight > 0);
 
   return (
@@ -79,6 +95,14 @@ export default async function CampaignsPage() {
                 <span className="text-emerald-400">{c.won} won</span>
               </div>
             </div>
+            {!!costByCampaign.get(c.id) && (
+              <span
+                className="text-xs text-slate-500 tabular shrink-0"
+                title="Estimated Anthropic API cost"
+              >
+                ~${costByCampaign.get(c.id)!.toFixed(2)}
+              </span>
+            )}
             {c.in_flight > 0 && (
               <span className="text-xs px-2.5 py-1 rounded-full border shrink-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
                 generating

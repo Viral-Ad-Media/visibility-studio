@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAnthropic, ENGINE_MODEL, RESEARCH_TOOLS, countSearchCalls } from "./anthropic";
+import { getAnthropic, ENGINE_MODEL, RESEARCH_TOOLS, countSearchCalls, estimateCost, SEARCH_CALL_COST_USD } from "./anthropic";
 import { serviceDb as db } from "../db";
 import { upsertBusiness } from "../business-upsert";
 
@@ -126,7 +126,7 @@ export type AuditBusinessPayload = {
 
 export async function runAuditBusiness(
   payload: AuditBusinessPayload
-): Promise<{ businessId: number; created: boolean; searchCallCount: number }> {
+): Promise<{ businessId: number; created: boolean; searchCallCount: number; estimatedCostUsd: number }> {
   const audit = (await db
     .prepare("SELECT category, location FROM vis_audits WHERE id = ?")
     .get(payload.audit_id)) as { category: string; location: string } | undefined;
@@ -153,6 +153,7 @@ export async function runAuditBusiness(
     messages,
   });
   const searchCallCount = countSearchCalls(researchResponse.content);
+  let estimatedCostUsd = estimateCost(researchResponse.usage) + searchCallCount * SEARCH_CALL_COST_USD;
 
   messages.push({ role: "assistant", content: researchResponse.content });
   messages.push({
@@ -170,6 +171,8 @@ export async function runAuditBusiness(
     messages,
   });
 
+  estimatedCostUsd += estimateCost(submitResponse.usage);
+
   const toolUse = submitResponse.content.find(
     (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use" && b.name === "submit_business"
   );
@@ -186,5 +189,5 @@ export async function runAuditBusiness(
 
   const { id, created } = await upsertBusiness(payload.audit_id, meta, db);
 
-  return { businessId: id, created, searchCallCount };
+  return { businessId: id, created, searchCallCount, estimatedCostUsd };
 }

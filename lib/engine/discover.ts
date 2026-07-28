@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAnthropic, ENGINE_MODEL, countSearchCalls } from "./anthropic";
+import { getAnthropic, ENGINE_MODEL, countSearchCalls, estimateCost, SEARCH_CALL_COST_USD } from "./anthropic";
 import { serviceDb as db } from "../db";
 
 const DISCOVERY_SYSTEM_PROMPT = `You are finding real local businesses for a visibility audit, using live web
@@ -44,6 +44,7 @@ const CandidatesSchema = z.object({
 export type DiscoverResult = {
   candidates: { name: string; website?: string }[];
   searchCallCount: number;
+  estimatedCostUsd: number;
 };
 
 // Discovery only — does not audit each business itself. The caller (worker.ts)
@@ -81,6 +82,7 @@ export async function discoverCandidates(auditId: number): Promise<DiscoverResul
     messages,
   });
   const searchCallCount = countSearchCalls(discoverResponse.content);
+  let estimatedCostUsd = estimateCost(discoverResponse.usage) + searchCallCount * SEARCH_CALL_COST_USD;
 
   messages.push({ role: "assistant", content: discoverResponse.content });
   messages.push({ role: "user", content: "Submit your candidate list now via submit_candidates." });
@@ -94,6 +96,8 @@ export async function discoverCandidates(auditId: number): Promise<DiscoverResul
     messages,
   });
 
+  estimatedCostUsd += estimateCost(submitResponse.usage);
+
   const toolUse = submitResponse.content.find(
     (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use" && b.name === "submit_candidates"
   );
@@ -102,5 +106,5 @@ export async function discoverCandidates(auditId: number): Promise<DiscoverResul
   }
 
   const { candidates } = CandidatesSchema.parse(toolUse.input);
-  return { candidates: candidates.slice(0, audit.target_count), searchCallCount };
+  return { candidates: candidates.slice(0, audit.target_count), searchCallCount, estimatedCostUsd };
 }

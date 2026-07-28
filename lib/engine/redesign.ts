@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAnthropic, ENGINE_MODEL } from "./anthropic";
+import { getAnthropic, ENGINE_MODEL, estimateCost } from "./anthropic";
 import { serviceDb as db } from "../db";
 import type { Business } from "../shared";
 
@@ -33,7 +33,9 @@ Hard rules:
 Respond with ONLY the raw HTML — no commentary, no markdown code fences, nothing before
 <!DOCTYPE and nothing after the closing </html> tag.`;
 
-export async function generateRedesign(campaignBusinessId: number): Promise<string> {
+export async function generateRedesign(
+  campaignBusinessId: number
+): Promise<{ html: string; estimatedCostUsd: number }> {
   const business = (await db
     .prepare(
       `SELECT b.* FROM vis_businesses b
@@ -72,5 +74,5 @@ export async function generateRedesign(campaignBusinessId: number): Promise<stri
     throw new Error("Redesign output doesn't look like a complete HTML document");
   }
 
-  return text;
+  return { html: text, estimatedCostUsd: estimateCost(response.usage) };
 }

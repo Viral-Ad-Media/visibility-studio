@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAnthropic, ENGINE_MODEL } from "./anthropic";
+import { getAnthropic, ENGINE_MODEL, estimateCost } from "./anthropic";
 import { serviceDb as db } from "../db";
 import { listEventTypes, createSingleUseSchedulingLink, type CalendlyEventType } from "./calendly";
 
@@ -8,9 +8,11 @@ import { listEventTypes, createSingleUseSchedulingLink, type CalendlyEventType }
 // have event types built for a completely different funnel (e.g. an
 // investment-qualifying coaching call), which would be actively wrong to
 // hand to a cold local-business prospect.
-async function pickEventType(eventTypes: CalendlyEventType[]): Promise<CalendlyEventType | null> {
-  if (eventTypes.length === 0) return null;
-  if (eventTypes.length === 1) return eventTypes[0];
+async function pickEventType(
+  eventTypes: CalendlyEventType[]
+): Promise<{ picked: CalendlyEventType | null; estimatedCostUsd: number }> {
+  if (eventTypes.length === 0) return { picked: null, estimatedCostUsd: 0 };
+  if (eventTypes.length === 1) return { picked: eventTypes[0], estimatedCostUsd: 0 };
 
   const anthropic = getAnthropic();
   const listing = eventTypes
@@ -27,18 +29,19 @@ meetings). Respond with ONLY the number of the best match, or the word "none" if
 list is suitable for a generic prospect discovery call.`,
     messages: [{ role: "user", content: listing }],
   });
+  const estimatedCostUsd = estimateCost(response.usage);
   const text = response.content
     .find((b): b is Anthropic.Messages.TextBlock => b.type === "text")
     ?.text?.trim()
     .toLowerCase();
-  if (!text || text === "none") return null;
+  if (!text || text === "none") return { picked: null, estimatedCostUsd };
   const idx = parseInt(text, 10);
-  return Number.isInteger(idx) && eventTypes[idx] ? eventTypes[idx] : null;
+  return { picked: Number.isInteger(idx) && eventTypes[idx] ? eventTypes[idx] : null, estimatedCostUsd };
 }
 
 export async function createBookingLink(
   accountId: number
-): Promise<{ bookingLink: string; eventTypeName: string }> {
+): Promise<{ bookingLink: string; eventTypeName: string; estimatedCostUsd: number }> {
   const setting = (await db
     .prepare("SELECT value FROM vis_settings WHERE account_id = ? AND key = 'calendly_event_type_uri'")
     .get(accountId)) as { value: string } | undefined;
@@ -47,11 +50,13 @@ export async function createBookingLink(
 
   let eventTypeUri = setting?.value;
   let eventTypeName: string;
+  let estimatedCostUsd = 0;
 
   if (eventTypeUri) {
     eventTypeName = eventTypes.find((et) => et.uri === eventTypeUri)?.name ?? "configured event type";
   } else {
-    const picked = await pickEventType(eventTypes);
+    const { picked, estimatedCostUsd: pickCost } = await pickEventType(eventTypes);
+    estimatedCostUsd += pickCost;
     if (!picked) {
       throw new Error(
         "No suitable Calendly event type found — none of the connected account's event types look like a generic discovery call. Create one and set it in Settings, or set calendly_event_type_uri manually."
@@ -62,5 +67,5 @@ export async function createBookingLink(
   }
 
   const bookingLink = await createSingleUseSchedulingLink(accountId, eventTypeUri);
-  return { bookingLink, eventTypeName };
+  return { bookingLink, eventTypeName, estimatedCostUsd };
 }
