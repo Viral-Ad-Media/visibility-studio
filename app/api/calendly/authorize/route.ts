@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { calendlyAuthorizeUrl, calendlyRedirectUri } from "@/lib/engine/calendly";
+import { calendlyAuthorizeUrl } from "@/lib/engine/calendly";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +10,7 @@ export const dynamic = "force-dynamic";
 // state; the callback re-derives it from the still-valid session cookie.
 export async function GET() {
   const state = randomBytes(16).toString("hex");
-  const url = calendlyAuthorizeUrl(state);
-  console.log("DEBUG calendly authorize redirect_uri:", JSON.stringify(calendlyRedirectUri()));
-  console.log("DEBUG calendly authorize full url:", url);
-  const res = NextResponse.redirect(url);
+  const res = NextResponse.redirect(calendlyAuthorizeUrl(state));
   res.cookies.set("calendly_oauth_state", state, {
     httpOnly: true,
     // `Secure` cookies are silently dropped over plain http://localhost —
