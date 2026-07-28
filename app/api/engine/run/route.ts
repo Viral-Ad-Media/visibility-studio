@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { runWorkerLoop } from "@/lib/engine/worker";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// A single business audit is 2 sequential Claude calls with web_search/
+// web_fetch tool loops — observed taking up to ~3 minutes for one business.
+// 60s (this route's original value, copied from clickbank-studio's single-
+// Claude-call stages) isn't enough and was confirmed timing out in
+// production. Requires a Vercel plan that allows >60s function duration.
+export const maxDuration = 300;
 
 // Called by a Supabase Postgres trigger (instant, on vis_jobs INSERT) and a
 // pg_cron backstop (every ~1 minute, drives forward multi-business audits and

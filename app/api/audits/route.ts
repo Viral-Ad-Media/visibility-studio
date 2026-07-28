@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import db, { getCurrentAccountId } from "@/lib/db";
 
 // The insert below fires a Postgres trigger (pg_net) that POSTs to
 // /api/engine/run instantly — no application-side call needed. See CLAUDE.md
@@ -14,12 +14,16 @@ export async function POST(req: Request) {
   const target = Math.min(Math.max(Number(body.target_count) || 10, 1), 50);
   const query = `${category} in ${location}`;
 
+  // vis_audits is the root of the tenancy tree — every other table derives
+  // account_id from it via a trigger, so unlike those, this insert has no
+  // parent row to derive from and must set it explicitly.
+  const accountId = await getCurrentAccountId();
   const audit = await db
     .prepare(
-      `INSERT INTO vis_audits (query, category, location, target_count, notes)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO vis_audits (query, category, location, target_count, notes, account_id)
+       VALUES (?, ?, ?, ?, ?, ?)`
     )
-    .run(query, category, location, target, body.notes?.trim() || null);
+    .run(query, category, location, target, body.notes?.trim() || null, accountId);
 
   await db.prepare("INSERT INTO vis_jobs (type, payload) VALUES ('run_audit', ?)").run(
     JSON.stringify({ audit_id: audit.lastInsertRowid })

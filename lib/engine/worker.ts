@@ -3,7 +3,7 @@ import { PRIORITY_ORDER, type Business } from "../shared";
 import { discoverCandidates } from "./discover";
 import { runAuditBusiness } from "./auditBusiness";
 
-const INVOCATION_BUDGET_MS = 50_000; // stay safely under maxDuration=60
+const INVOCATION_BUDGET_MS = 240_000; // stay safely under maxDuration=300
 const MAX_ATTEMPTS = 5;
 
 type JobRow = {
