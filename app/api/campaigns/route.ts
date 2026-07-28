@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import db, { getCurrentAccountId } from "@/lib/db";
+import { getCreditBalance } from "@/lib/billing";
 
 // Create a campaign from a set of businesses within one audit. Queues one
 // build_redesign and one create_booking_link job per business.
@@ -20,6 +21,18 @@ export async function POST(req: Request) {
 
   const audit = await db.prepare("SELECT id FROM vis_audits WHERE id = ?").get(auditId);
   if (!audit) return NextResponse.json({ error: "audit not found" }, { status: 404 });
+
+  // Credits fund the real Anthropic API cost of building redesigns/booking
+  // links — refuse to queue new campaign work once the account's balance is
+  // spent, same rule as audits (app/api/audits/route.ts).
+  const accountId = await getCurrentAccountId();
+  const balance = await getCreditBalance(accountId);
+  if (balance <= 0) {
+    return NextResponse.json(
+      { error: "Your credit balance is $0 — add credits in Billing before creating a new campaign." },
+      { status: 402 }
+    );
+  }
 
   const rows = (await db
     .prepare(

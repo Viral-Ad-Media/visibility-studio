@@ -93,8 +93,7 @@ export default function NewAuditForm() {
         {busy ? "Queuing…" : "Queue audit"}
       </button>
       <p className="text-[11px] text-slate-600">
-        The audit runs when you run <code className="text-indigo-500">/run-audits</code> in Claude
-        Code from this project folder.
+        Audits run automatically — no need to run anything yourself.
       </p>
     </form>
   );

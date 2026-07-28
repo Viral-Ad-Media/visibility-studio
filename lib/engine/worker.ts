@@ -5,6 +5,7 @@ import { runAuditBusiness } from "./auditBusiness";
 import { generateRedesign } from "./redesign";
 import { createBookingLink } from "./booking";
 import { logAuditEvent } from "../auditLog";
+import { deductCredits } from "../billing";
 
 const MAX_ATTEMPTS = 5;
 
@@ -133,6 +134,7 @@ async function processRunAudit(job: JobRow) {
     job.id,
     JSON.stringify({ search_call_count: searchCallCount, candidates: candidates.length, estimated_cost_usd: estimatedCostUsd })
   );
+  await deductCredits(job.account_id, estimatedCostUsd, `run_audit:${job.id}`);
 }
 
 async function processAuditBusiness(job: JobRow) {
@@ -155,6 +157,7 @@ async function processAuditBusiness(job: JobRow) {
       estimated_cost_usd: estimatedCostUsd,
     })
   );
+  await deductCredits(job.account_id, estimatedCostUsd, `audit_business:${job.id}`);
   await maybeFinalizeAudit(auditId);
 }
 
@@ -179,6 +182,7 @@ async function processBuildRedesign(job: JobRow) {
     )
     .run(html, campaignBusinessId);
   await markDone(job.id, JSON.stringify({ estimated_cost_usd: estimatedCostUsd }));
+  await deductCredits(job.account_id, estimatedCostUsd, `build_redesign:${job.id}`);
 
   const businessName = await campaignBusinessName(campaignBusinessId);
   await logAuditEvent(
@@ -211,6 +215,7 @@ async function processCreateBookingLink(job: JobRow) {
     )
     .run(bookingLink, eventTypeName, campaignBusinessId);
   await markDone(job.id, JSON.stringify({ estimated_cost_usd: estimatedCostUsd }));
+  await deductCredits(job.account_id, estimatedCostUsd, `create_booking_link:${job.id}`);
 
   const businessName = await campaignBusinessName(campaignBusinessId);
   await logAuditEvent(

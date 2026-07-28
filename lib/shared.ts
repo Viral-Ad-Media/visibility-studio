@@ -121,3 +121,18 @@ export const CAMPAIGN_STAGES = [
 ] as const;
 
 export const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+
+export type Account = {
+  id: number;
+  name: string;
+  access_granted: boolean;
+  trial_ends_at: string | null;
+};
+
+export function hasAppAccess(
+  account: Pick<Account, "access_granted" | "trial_ends_at"> | null | undefined
+): boolean {
+  if (!account) return false;
+  if (account.access_granted) return true;
+  return !!account.trial_ends_at && new Date(account.trial_ends_at) > new Date();
+}

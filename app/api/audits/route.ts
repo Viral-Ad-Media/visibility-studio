@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
+import { getCreditBalance } from "@/lib/billing";
 
 // The insert below fires a Postgres trigger (pg_net) that POSTs to
 // /api/engine/run instantly — no application-side call needed. See CLAUDE.md
@@ -18,6 +19,19 @@ export async function POST(req: Request) {
   // account_id from it via a trigger, so unlike those, this insert has no
   // parent row to derive from and must set it explicitly.
   const accountId = await getCurrentAccountId();
+
+  // Credits fund the real Anthropic API cost of running an audit — refuse to
+  // queue new work once the account's balance is spent, same rule as
+  // campaigns (app/api/campaigns/route.ts). Already-running jobs are
+  // unaffected; this only blocks starting new ones.
+  const balance = await getCreditBalance(accountId);
+  if (balance <= 0) {
+    return NextResponse.json(
+      { error: "Your credit balance is $0 — add credits in Billing before running a new audit." },
+      { status: 402 }
+    );
+  }
+
   const audit = await db
     .prepare(
       `INSERT INTO vis_audits (query, category, location, target_count, notes, account_id)

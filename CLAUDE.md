@@ -126,6 +126,59 @@ tracked (`audits.csv_drive_url` / `campaign_businesses.redesign_drive_url`).
 Currently one key: `calendly_event_type_uri` — which Calendly event type `/run-campaigns` should
 use for booking links. Leave unset and the skill auto-picks the host's first active event type.
 
+## Billing (Stripe) and access control
+
+- One-time access fee and credit top-ups are both Stripe Checkout Sessions created ad-hoc
+  (`price_data`, no pre-created Stripe Products needed) — see `lib/pricing.ts` for amounts ($97
+  access, $50/$100/$250 credit packs).
+- The **only** place that grants `vis_accounts.access_granted` or writes `vis_credits_ledger` is
+  the Stripe webhook (`app/api/billing/webhook/route.ts`), which verifies the Stripe signature and
+  uses `serviceDb`. Never grant access or add credits from anywhere else, including the engine
+  worker or a manual script — the worker only ever *deducts* (see below). `middleware.ts` exempts
+  `/api/billing/webhook` from the auth gate the same way it already exempts `/api/engine/run` —
+  both are called server-to-server with no browser session, verified by their own signature/secret
+  instead.
+- Access = `access_granted OR trial_ends_at > now()` — `hasAppAccess()` in `lib/shared.ts`, used
+  by both `app/app/layout.tsx` (the paywall gate — redirects to `/billing`) and the billing page
+  itself. `app/billing/page.tsx` lives outside the `/app/*` route group specifically so it's never
+  itself gated (would be a redirect loop otherwise); it checks for a session directly and redirects
+  to `/login` if there isn't one, same as every `(auth)` page.
+- **30-day free trial**: `vis_accounts.trial_ends_at`, set once via the `vis_start_trial()`
+  Postgres RPC — `SECURITY DEFINER`, callable only by `authenticated`, self-limiting (no-ops if
+  `access_granted` is already true or a trial was already started, so it can't be replayed). Also
+  grants a **$20 starter credit** (`vis_credits_ledger`, reason `trial_starter_credit`) so the
+  trial is actually usable, not a paywall around a paywall. Client calls it via
+  `POST /api/billing/start-trial` (`StartTrialButton` in `components/BillingActions.tsx`), which
+  runs the RPC through the impersonated `db` connection (not `serviceDb`) — impersonation is what
+  makes `auth.uid()` resolve inside the function body, same pattern as
+  `vis_create_account_with_owner()` in `app/(auth)/actions.ts`.
+- **Credits fund real audit/campaign job cost** — a deliberately different model from a flat
+  access-only paywall. `vis_credits_ledger` is append-only (`delta_usd` per row, balance =
+  `SUM(delta_usd)`, `lib/billing.ts`'s `getCreditBalance()`/`deductCredits()`). Every `run_audit`/
+  `audit_business`/`build_redesign`/`create_booking_link` job the worker completes deducts its own
+  real `estimated_cost_usd` (`lib/engine/worker.ts`) — the same number already surfaced on the
+  audits/campaigns list badges and the audit trail, now also the thing that actually draws down the
+  balance, not just a display figure. `app/api/audits/route.ts` and `app/api/campaigns/route.ts`
+  both refuse (`402`) to queue new work once `getCreditBalance(accountId) <= 0` — already-running
+  jobs are unaffected, this only blocks starting new ones. A job's cost is only known after the
+  Claude call completes, so a single expensive job can push balance slightly negative before the
+  block kicks in on the *next* attempt — acceptable, same shape as most usage-based metering.
+- **Existing accounts were grandfathered when this shipped** (migration `vis_billing_trial_credits`
+  set `access_granted = true` and seeded a $100 credit balance for every account that existed at
+  the time) — never assume that's still true for a *future* schema change; recheck before reusing
+  this "no backfill breaks existing data" pattern.
+- **Usage/cost audit trail**: `/app/audit-trail` (`app/app/audit-trail/page.tsx`) is a read-only
+  account activity log — team member add/remove, password changes, Calendly connections, plus
+  audit-completed/redesign-built/booking-link-created events, each optionally tagged with a real
+  `cost_usd` (`vis_audit_log`, written via `lib/auditLog.ts`'s `logAuditEvent()`). This is a
+  *display* of the same spend `vis_credits_ledger` deducts, not a second ledger — `vis_credits_ledger`
+  is the one source of truth for "can this account afford to run something," `vis_audit_log` is
+  just "what happened and what did it cost."
+- **Env vars**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (dashboard.stripe.com → Developers →
+  API keys / Webhooks — register `${NEXT_PUBLIC_SITE_URL}/api/billing/webhook` listening for
+  `checkout.session.completed`). For local testing:
+  `stripe listen --forward-to localhost:3300/api/billing/webhook`.
+
 ## Content rules (non-negotiable)
 
 1. **Never fabricate** emails, phone numbers, ratings, review counts, rankings, or site facts.

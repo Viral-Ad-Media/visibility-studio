@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings, LogOut, Gauge, History } from "lucide-react";
+import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings, LogOut, History, Wallet, Clock } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
 
 const links = [
@@ -13,7 +13,15 @@ const links = [
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
 
-export default function Nav({ totalCostUsd }: { totalCostUsd: number }) {
+export default function Nav({
+  creditBalance,
+  onTrial,
+  trialDaysLeft,
+}: {
+  creditBalance: number;
+  onTrial: boolean;
+  trialDaysLeft: number;
+}) {
   const pathname = usePathname();
   return (
     <nav className="w-56 shrink-0 border-r border-ink-700 bg-ink-900 p-4 flex flex-col gap-1">
@@ -42,15 +50,28 @@ export default function Nav({ totalCostUsd }: { totalCostUsd: number }) {
         );
       })}
       <div className="mt-auto space-y-3">
-        <div
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 bg-ink-800/50"
-          title="Estimated Anthropic API cost across all audits and campaigns run by this account"
+        {onTrial && (
+          <Link
+            href="/billing"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-amber-300 bg-amber-500/10 hover:bg-amber-500/15"
+            title="Free trial — click to manage billing"
+          >
+            <Clock className="w-4 h-4 shrink-0" />
+            <span>
+              Trial: {trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"} left
+            </span>
+          </Link>
+        )}
+        <Link
+          href="/billing"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 bg-ink-800/50 hover:bg-ink-800"
+          title="Credit balance funding audit/campaign job cost — click to top up"
         >
-          <Gauge className="w-4 h-4 shrink-0" />
+          <Wallet className="w-4 h-4 shrink-0" />
           <span>
-            Resource usage: <span className="text-slate-200 font-medium">${totalCostUsd.toFixed(2)}</span>
+            Credit balance: <span className="text-slate-200 font-medium">${creditBalance.toFixed(2)}</span>
           </span>
-        </div>
+        </Link>
         <form action={logout}>
           <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-ink-800 hover:text-slate-200">
             <LogOut className="w-4 h-4" />

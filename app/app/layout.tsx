@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Nav from "@/components/Nav";
-import db from "@/lib/db";
+import db, { getCurrentAccountId } from "@/lib/db";
+import { getCreditBalance } from "@/lib/billing";
+import { hasAppAccess, type Account } from "@/lib/shared";
 
 // Everything under this layout is auth-gated and per-user — never statically
 // cache it (this also fixes /app/new, which has no DB read of its own but
@@ -11,21 +13,22 @@ export default async function CockpitLayout({ children }: { children: React.Reac
   const membership = await db.prepare("SELECT id FROM vis_account_users LIMIT 1").get();
   if (!membership) redirect("/onboarding");
 
-  // All-time estimated Anthropic API cost across every job this account has
-  // run (audits + campaigns) — mirrors the per-job cost query already used on
-  // the audits/campaigns list pages. Filtered to JSON-shaped results only, a
-  // job can fail with a plain-string message instead, which would blow up
-  // the ::json cast.
-  const { cost } = (await db
-    .prepare(
-      `SELECT SUM(COALESCE((result::json->>'estimated_cost_usd')::numeric, 0)) AS cost
-       FROM vis_jobs WHERE result LIKE '{%'`
-    )
-    .get()) as { cost: string | null };
+  const accountId = await getCurrentAccountId();
+  const account = (await db
+    .prepare("SELECT id, name, access_granted, trial_ends_at FROM vis_accounts WHERE id = ?")
+    .get(accountId)) as Account;
+  if (!hasAppAccess(account)) redirect("/billing");
+
+  const onTrial = !account.access_granted && !!account.trial_ends_at;
+  const trialDaysLeft = onTrial
+    ? Math.max(0, Math.ceil((new Date(account.trial_ends_at!).getTime() - Date.now()) / 86_400_000))
+    : 0;
+
+  const creditBalance = await getCreditBalance(accountId);
 
   return (
     <div className="flex min-h-screen">
-      <Nav totalCostUsd={Number(cost) || 0} />
+      <Nav creditBalance={creditBalance} onTrial={onTrial} trialDaysLeft={trialDaysLeft} />
       <main className="flex-1 p-8 max-w-6xl mx-auto w-full">{children}</main>
     </div>
   );

@@ -9,7 +9,12 @@ export async function middleware(request: NextRequest) {
   // The automated-engine webhook is called by Supabase (pg_net trigger + a
   // pg_cron backstop), never by a logged-in browser — there's no Supabase
   // session to check. It has its own shared-secret check (see the route).
-  if (request.nextUrl.pathname === "/api/engine/run") {
+  // The Stripe webhook is the same shape: called server-to-server by Stripe,
+  // no browser session, verified by its own signature check instead.
+  if (
+    request.nextUrl.pathname === "/api/engine/run" ||
+    request.nextUrl.pathname === "/api/billing/webhook"
+  ) {
     return NextResponse.next();
   }
 
