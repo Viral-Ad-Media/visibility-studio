@@ -71,7 +71,7 @@ async function getCurrentUser(accessToken: string): Promise<{ uri: string; name:
 
 // Called by app/api/calendly/callback/route.ts right after a user connects
 // their own Calendly account through the OAuth flow.
-export async function saveConnection(accountId: number, code: string): Promise<void> {
+export async function saveConnection(accountId: number, code: string): Promise<{ calendlyName: string }> {
   const tokens = await exchangeCode(code);
   const user = await getCurrentUser(tokens.access_token);
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
@@ -98,6 +98,8 @@ export async function saveConnection(accountId: number, code: string): Promise<v
       calendly_organization_uri: user.current_organization ?? null,
       calendly_name: user.name,
     });
+
+  return { calendlyName: user.name };
 }
 
 export async function getConnectionStatus(

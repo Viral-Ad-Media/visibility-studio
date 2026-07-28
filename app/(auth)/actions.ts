@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { supabaseServerClient } from "@/lib/supabase-server";
-import db from "@/lib/db";
+import db, { getCurrentAccountId } from "@/lib/db";
+import { logAuditEvent } from "@/lib/auditLog";
 
 export async function login(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
@@ -54,10 +55,16 @@ export async function changePassword(formData: FormData) {
     redirect("/app/settings?password_error=" + encodeURIComponent("Passwords don't match"));
   }
 
-  const { error } = await supabaseServerClient().auth.updateUser({ password });
+  const client = supabaseServerClient();
+  const { error } = await client.auth.updateUser({ password });
   if (error) {
     redirect("/app/settings?password_error=" + encodeURIComponent(error.message));
   }
+
+  const email = (await client.auth.getUser()).data.user?.email ?? null;
+  const accountId = await getCurrentAccountId();
+  await logAuditEvent(accountId, "password_changed", `${email ?? "Someone"} changed their password`, email);
+
   redirect("/app/settings?password_changed=1");
 }
 

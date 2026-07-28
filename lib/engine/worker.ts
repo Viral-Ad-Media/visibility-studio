@@ -4,6 +4,7 @@ import { discoverCandidates } from "./discover";
 import { runAuditBusiness } from "./auditBusiness";
 import { generateRedesign } from "./redesign";
 import { createBookingLink } from "./booking";
+import { logAuditEvent } from "../auditLog";
 
 const MAX_ATTEMPTS = 5;
 
@@ -70,11 +71,34 @@ async function maybeFinalizeAudit(auditId: number) {
     .prepare("SELECT * FROM vis_businesses WHERE audit_id = ? ORDER BY id")
     .all(auditId)) as Business[];
   const summary = buildSummary(businesses);
-  await db
+  const updated = (await db
     .prepare(
-      "UPDATE vis_audits SET status='ready', error=NULL, summary_md=?, updated_at=now()::text WHERE id = ? AND status <> 'ready'"
+      `UPDATE vis_audits SET status='ready', error=NULL, summary_md=?, updated_at=now()::text
+       WHERE id = ? AND status <> 'ready'
+       RETURNING account_id, query`
     )
-    .run(summary, auditId);
+    .get(summary, auditId)) as { account_id: number; query: string } | undefined;
+
+  // Only log once, on the actual pending->ready transition — this UPDATE is a
+  // harmless no-op on repeat calls (two audit_business completions racing to
+  // finalize), which would otherwise double-log the same audit.
+  if (updated) {
+    const { cost } = (await db
+      .prepare(
+        `SELECT SUM(COALESCE((result::json->>'estimated_cost_usd')::numeric, 0)) AS cost
+         FROM vis_jobs
+         WHERE type IN ('run_audit','audit_business') AND result LIKE '{%'
+           AND (payload::json->>'audit_id')::bigint = ?`
+      )
+      .get(auditId)) as { cost: string | null };
+    await logAuditEvent(
+      updated.account_id,
+      "audit_completed",
+      `Audit "${updated.query}" completed — ${businesses.length} businesses audited`,
+      null,
+      Number(cost) || 0
+    );
+  }
 }
 
 async function processRunAudit(job: JobRow) {
@@ -155,6 +179,15 @@ async function processBuildRedesign(job: JobRow) {
     )
     .run(html, campaignBusinessId);
   await markDone(job.id, JSON.stringify({ estimated_cost_usd: estimatedCostUsd }));
+
+  const businessName = await campaignBusinessName(campaignBusinessId);
+  await logAuditEvent(
+    job.account_id,
+    "redesign_built",
+    `Redesign mockup built for "${businessName}"`,
+    null,
+    estimatedCostUsd
+  );
 }
 
 async function processCreateBookingLink(job: JobRow) {
@@ -178,6 +211,26 @@ async function processCreateBookingLink(job: JobRow) {
     )
     .run(bookingLink, eventTypeName, campaignBusinessId);
   await markDone(job.id, JSON.stringify({ estimated_cost_usd: estimatedCostUsd }));
+
+  const businessName = await campaignBusinessName(campaignBusinessId);
+  await logAuditEvent(
+    job.account_id,
+    "booking_link_created",
+    `Booking link created for "${businessName}"`,
+    null,
+    estimatedCostUsd
+  );
+}
+
+async function campaignBusinessName(campaignBusinessId: number): Promise<string> {
+  const row = (await db
+    .prepare(
+      `SELECT b.name FROM vis_businesses b
+       JOIN vis_campaign_businesses cb ON cb.business_id = b.id
+       WHERE cb.id = ?`
+    )
+    .get(campaignBusinessId)) as { name: string } | undefined;
+  return row?.name ?? `campaign business ${campaignBusinessId}`;
 }
 
 async function failJob(job: JobRow, message: string) {

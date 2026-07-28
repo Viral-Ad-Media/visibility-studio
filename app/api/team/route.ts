@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentAccountId, serviceDb } from "@/lib/db";
+import { supabaseServerClient } from "@/lib/supabase-server";
+import { logAuditEvent } from "@/lib/auditLog";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +51,9 @@ export async function POST(req: Request) {
     )
     .run({ account_id: accountId, user_id: user.id });
 
+  const actorEmail = (await supabaseServerClient().auth.getUser()).data.user?.email ?? null;
+  await logAuditEvent(accountId, "member_added", `${actorEmail ?? "Someone"} added ${trimmed} to the team`, actorEmail);
+
   return NextResponse.json({ ok: true });
 }
 
@@ -66,9 +71,21 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Can't remove the last member of an account" }, { status: 400 });
   }
 
+  const removed = (await serviceDb
+    .prepare("SELECT email FROM auth.users WHERE id = ?")
+    .get(user_id)) as { email: string } | undefined;
+
   await serviceDb
     .prepare("DELETE FROM vis_account_users WHERE account_id = ? AND user_id = ?")
     .run(accountId, user_id);
+
+  const actorEmail = (await supabaseServerClient().auth.getUser()).data.user?.email ?? null;
+  await logAuditEvent(
+    accountId,
+    "member_removed",
+    `${actorEmail ?? "Someone"} removed ${removed?.email ?? user_id} from the team`,
+    actorEmail
+  );
 
   return NextResponse.json({ ok: true });
 }
