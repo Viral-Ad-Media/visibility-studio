@@ -7,11 +7,17 @@ export function calendlyRedirectUri(): string {
   return `${process.env.NEXT_PUBLIC_SITE_URL}/api/calendly/callback`;
 }
 
+// Scopes must also be enabled for the OAuth app itself in the Calendly
+// developer portal (My Apps → app settings) — this request-time parameter
+// can't grant access to anything not already allowed there.
+const CALENDLY_SCOPES = "users:read event_types:read scheduling_links:write";
+
 export function calendlyAuthorizeUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: process.env.CALENDLY_CLIENT_ID!,
     response_type: "code",
     redirect_uri: calendlyRedirectUri(),
+    scope: CALENDLY_SCOPES,
     state,
   });
   return `${CALENDLY_AUTH_BASE}/oauth/authorize?${params}`;
