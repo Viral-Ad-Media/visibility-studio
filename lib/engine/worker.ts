@@ -2,12 +2,14 @@ import { serviceDb as db } from "../db";
 import { PRIORITY_ORDER, type Business } from "../shared";
 import { discoverCandidates } from "./discover";
 import { runAuditBusiness } from "./auditBusiness";
+import { generateRedesign } from "./redesign";
+import { createBookingLink } from "./booking";
 
 const MAX_ATTEMPTS = 5;
 
 type JobRow = {
   id: number;
-  type: "run_audit" | "audit_business" | string;
+  type: "run_audit" | "audit_business" | "build_redesign" | "create_booking_link" | string;
   payload: string;
   status: string;
   attempts: number;
@@ -121,14 +123,62 @@ async function processAuditBusiness(job: JobRow) {
   await maybeFinalizeAudit(auditId);
 }
 
+async function processBuildRedesign(job: JobRow) {
+  const payload = JSON.parse(job.payload || "{}");
+  const campaignBusinessId = Number(payload.campaign_business_id);
+  if (!campaignBusinessId) {
+    throw new Error(`build_redesign job ${job.id} has no campaign_business_id in its payload`);
+  }
+
+  await db
+    .prepare(
+      "UPDATE vis_campaign_businesses SET redesign_status='running', redesign_error=NULL, updated_at=now()::text WHERE id = ?"
+    )
+    .run(campaignBusinessId);
+
+  const html = await generateRedesign(campaignBusinessId);
+
+  await db
+    .prepare(
+      "UPDATE vis_campaign_businesses SET redesign_status='ready', redesign_error=NULL, redesign_html=?, updated_at=now()::text WHERE id = ?"
+    )
+    .run(html, campaignBusinessId);
+  await markDone(job.id, "ok");
+}
+
+async function processCreateBookingLink(job: JobRow) {
+  const payload = JSON.parse(job.payload || "{}");
+  const campaignBusinessId = Number(payload.campaign_business_id);
+  if (!campaignBusinessId) {
+    throw new Error(`create_booking_link job ${job.id} has no campaign_business_id in its payload`);
+  }
+
+  await db
+    .prepare(
+      "UPDATE vis_campaign_businesses SET booking_status='running', booking_error=NULL, updated_at=now()::text WHERE id = ?"
+    )
+    .run(campaignBusinessId);
+
+  const { bookingLink, eventTypeName } = await createBookingLink(job.account_id);
+
+  await db
+    .prepare(
+      "UPDATE vis_campaign_businesses SET booking_status='ready', booking_error=NULL, booking_link=?, booking_event_type=?, updated_at=now()::text WHERE id = ?"
+    )
+    .run(bookingLink, eventTypeName, campaignBusinessId);
+  await markDone(job.id, "ok");
+}
+
 async function failJob(job: JobRow, message: string) {
-  const auditId = (() => {
+  const payload = (() => {
     try {
-      return Number(JSON.parse(job.payload || "{}").audit_id) || null;
+      return JSON.parse(job.payload || "{}");
     } catch {
-      return null;
+      return {};
     }
   })();
+  const auditId = Number(payload.audit_id) || null;
+  const campaignBusinessId = Number(payload.campaign_business_id) || null;
 
   if (job.attempts >= MAX_ATTEMPTS) {
     await db
@@ -143,6 +193,20 @@ async function failJob(job: JobRow, message: string) {
     // just drop it and let the rest finish; still need to check finalization.
     if (job.type === "audit_business" && auditId) {
       await maybeFinalizeAudit(auditId);
+    }
+    if (job.type === "build_redesign" && campaignBusinessId) {
+      await db
+        .prepare(
+          "UPDATE vis_campaign_businesses SET redesign_status='error', redesign_error=?, updated_at=now()::text WHERE id = ?"
+        )
+        .run(message, campaignBusinessId);
+    }
+    if (job.type === "create_booking_link" && campaignBusinessId) {
+      await db
+        .prepare(
+          "UPDATE vis_campaign_businesses SET booking_status='error', booking_error=?, updated_at=now()::text WHERE id = ?"
+        )
+        .run(message, campaignBusinessId);
     }
   } else {
     // Leave pending (not running) so the natural claim_job() path retries it.
@@ -172,6 +236,10 @@ export async function runWorkerLoop(): Promise<{ processed: number }> {
       await processRunAudit(job);
     } else if (job.type === "audit_business") {
       await processAuditBusiness(job);
+    } else if (job.type === "build_redesign") {
+      await processBuildRedesign(job);
+    } else if (job.type === "create_booking_link") {
+      await processCreateBookingLink(job);
     } else {
       await failJob(job, `Unknown job type: ${job.type}`);
       return { processed: 0 };
