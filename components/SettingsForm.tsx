@@ -20,17 +20,23 @@ export default function SettingsForm({
   );
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setSaved(false);
-    await fetch("/api/settings", {
+    setError(null);
+    const res = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ calendly_event_type_uri: calendlyEventTypeUri }),
     });
     setBusy(false);
+    if (!res.ok) {
+      setError("Couldn't save — try again");
+      return;
+    }
     setSaved(true);
     router.refresh();
     setTimeout(() => setSaved(false), 2000);
@@ -77,6 +83,7 @@ export default function SettingsForm({
       >
         {busy ? "Saving…" : saved ? "Saved" : "Save"}
       </button>
+      {error && <p className="text-sm text-red-400">{error}</p>}
     </form>
   );
 }

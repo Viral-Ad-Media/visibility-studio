@@ -18,10 +18,14 @@ export async function PUT(req: Request) {
   const entries = Object.entries(body).filter(([, v]) => typeof v === "string");
   await db.transaction(async (tx) => {
     for (const [key, value] of entries) {
+      // Explicit RETURNING account_id — lib/db.ts auto-appends "RETURNING id"
+      // to any bare INSERT, but vis_settings' primary key is (account_id,
+      // key), not id (there's no id column on this table at all).
       await tx
         .prepare(
           "INSERT INTO vis_settings (account_id, key, value) VALUES (@account_id, @key, @value) " +
-            "ON CONFLICT(account_id, key) DO UPDATE SET value=@value"
+            "ON CONFLICT(account_id, key) DO UPDATE SET value=@value " +
+            "RETURNING account_id"
         )
         .run({ account_id: accountId, key, value });
     }
