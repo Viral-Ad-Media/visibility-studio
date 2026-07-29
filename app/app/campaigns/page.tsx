@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Megaphone } from "lucide-react";
 import db, { Campaign } from "@/lib/db";
 import AutoRefresh from "@/components/AutoRefresh";
 
@@ -62,9 +63,23 @@ export default async function CampaignsPage() {
       </div>
 
       {campaigns.length === 0 && (
-        <div className="card p-10 text-center text-slate-400">
-          No campaigns yet. Select businesses on an audit page and click{" "}
-          <span className="text-slate-200">Create campaign</span>.
+        <div className="card p-10 text-center animate-fade-in-up">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-ink-700 bg-ink-800">
+            <Megaphone className="h-5 w-5 text-indigo-400" />
+          </div>
+          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">No campaigns yet</h2>
+          <p className="mx-auto max-w-sm text-sm text-slate-400 mb-5">
+            Open a ready audit, select the businesses worth pursuing, and click{" "}
+            <span className="text-slate-200">Create campaign</span> — each one gets a homepage
+            redesign mockup and a real booking link.
+          </p>
+          <Link
+            href="/app"
+            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg"
+          >
+            <Megaphone className="w-3.5 h-3.5" />
+            Go to your audits
+          </Link>
         </div>
       )}
 

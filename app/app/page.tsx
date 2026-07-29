@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchCheck } from "lucide-react";
 import db, { Audit } from "@/lib/db";
 import AutoRefresh from "@/components/AutoRefresh";
 
@@ -56,8 +57,23 @@ export default async function Dashboard() {
       </div>
 
       {audits.length === 0 && (
-        <div className="card p-10 text-center text-slate-400">
-          No audits yet. Queue one and it runs automatically — no need to run anything yourself.
+        <div className="card p-10 text-center animate-fade-in-up">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-ink-700 bg-ink-800">
+            <SearchCheck className="h-5 w-5 text-indigo-400" />
+          </div>
+          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">No audits yet</h2>
+          <p className="mx-auto max-w-sm text-sm text-slate-400 mb-5">
+            Queue one with a niche and a location — it finds real local businesses and audits
+            each one automatically. Try &ldquo;dentists in Dallas&rdquo; or &ldquo;roofing
+            companies in Atlanta&rdquo;.
+          </p>
+          <Link
+            href="/app/new"
+            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg"
+          >
+            <SearchCheck className="w-3.5 h-3.5" />
+            Queue your first audit
+          </Link>
         </div>
       )}
 

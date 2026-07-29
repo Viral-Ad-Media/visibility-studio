@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings, LogOut, History, Wallet, Clock } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
+import ProductTour from "./ProductTour";
 
 const links = [
-  { href: "/app", label: "Audits", icon: LayoutDashboard },
-  { href: "/app/new", label: "New audit", icon: SearchCheck },
-  { href: "/app/campaigns", label: "Campaigns", icon: Megaphone },
-  { href: "/app/audit-trail", label: "Audit trail", icon: History },
-  { href: "/app/settings", label: "Settings", icon: Settings },
+  { href: "/app", label: "Audits", icon: LayoutDashboard, tourId: "tour-nav-audits" },
+  { href: "/app/new", label: "New audit", icon: SearchCheck, tourId: "tour-nav-new-audit" },
+  { href: "/app/campaigns", label: "Campaigns", icon: Megaphone, tourId: "tour-nav-campaigns" },
+  { href: "/app/audit-trail", label: "Audit trail", icon: History, tourId: "tour-nav-audit-trail" },
+  { href: "/app/settings", label: "Settings", icon: Settings, tourId: "tour-nav-settings" },
 ];
 
 export default function Nav({
@@ -32,12 +33,13 @@ export default function Nav({
           <div className="text-[11px] text-slate-500 leading-tight">prospect audit engine</div>
         </div>
       </Link>
-      {links.map(({ href, label, icon: Icon }) => {
+      {links.map(({ href, label, icon: Icon, tourId }) => {
         const active = href === "/app" ? pathname === "/app" : pathname.startsWith(href);
         return (
           <Link
             key={href}
             href={href}
+            id={tourId}
             className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm ${
               active
                 ? "bg-ink-700 text-slate-100 font-medium"
@@ -64,6 +66,7 @@ export default function Nav({
         )}
         <Link
           href="/billing"
+          id="tour-nav-billing"
           className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 bg-ink-800/50 hover:bg-ink-800"
           title="Credit balance funding audit/campaign job cost — click to top up"
         >
@@ -83,6 +86,7 @@ export default function Nav({
           <code className="text-indigo-500">/run-campaigns</code> in Claude Code.
         </div>
       </div>
+      <ProductTour />
     </nav>
   );
 }

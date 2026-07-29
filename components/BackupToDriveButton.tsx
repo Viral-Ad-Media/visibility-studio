@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { HardDriveUpload, ExternalLink } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function BackupToDriveButton({
   auditId,
@@ -19,31 +20,42 @@ export default function BackupToDriveButton({
   return (
     <div className="flex items-center gap-2">
       {driveUrl && (
-        <a
-          href={driveUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-3 py-1.5 rounded-lg"
-          title={backedUpAt ? `Backed up ${backedUpAt.slice(0, 10)}` : undefined}
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          Drive backup{backedUpAt ? ` (${backedUpAt.slice(0, 10)})` : ""}
-        </a>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={driveUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-3 py-1.5 rounded-lg"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Drive backup{backedUpAt ? ` (${backedUpAt.slice(0, 10)})` : ""}
+            </a>
+          </TooltipTrigger>
+          {backedUpAt && <TooltipContent>Backed up {backedUpAt.slice(0, 10)}</TooltipContent>}
+        </Tooltip>
       )}
-      <button
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          await fetch(`/api/audits/${auditId}/backup`, { method: "POST" });
-          setBusy(false);
-          router.refresh();
-        }}
-        className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-3 py-1.5 rounded-lg disabled:opacity-50"
-        title="Queue a Drive backup of this audit's CSV — a Google Sheet copy, separate from the local database"
-      >
-        <HardDriveUpload className="w-3.5 h-3.5" />
-        {driveUrl ? "Back up again" : "Back up to Drive"}
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await fetch(`/api/audits/${auditId}/backup`, { method: "POST" });
+              setBusy(false);
+              router.refresh();
+            }}
+            className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-3 py-1.5 rounded-lg disabled:opacity-50"
+          >
+            <HardDriveUpload className="w-3.5 h-3.5" />
+            {driveUrl ? "Back up again" : "Back up to Drive"}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          Queue a Drive backup of this audit&apos;s CSV — a Google Sheet copy, separate from the
+          local database
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }

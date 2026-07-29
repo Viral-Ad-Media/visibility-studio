@@ -3,6 +3,7 @@ import Nav from "@/components/Nav";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
 import { hasAppAccess, type Account } from "@/lib/shared";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Everything under this layout is auth-gated and per-user — never statically
 // cache it (this also fixes /app/new, which has no DB read of its own but
@@ -27,9 +28,11 @@ export default async function CockpitLayout({ children }: { children: React.Reac
   const creditBalance = await getCreditBalance(accountId);
 
   return (
-    <div className="flex min-h-screen">
-      <Nav creditBalance={creditBalance} onTrial={onTrial} trialDaysLeft={trialDaysLeft} />
-      <main className="flex-1 p-8 max-w-6xl mx-auto w-full">{children}</main>
-    </div>
+    <TooltipProvider delayDuration={200}>
+      <div className="flex min-h-screen">
+        <Nav creditBalance={creditBalance} onTrial={onTrial} trialDaysLeft={trialDaysLeft} />
+        <main className="flex-1 p-8 max-w-6xl mx-auto w-full">{children}</main>
+      </div>
+    </TooltipProvider>
   );
 }
