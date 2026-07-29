@@ -2,6 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* shadcn/ui theme tokens, mapped directly onto the app's existing ink/slate
+   dark palette (tailwind.config.ts's `ink` scale + default slate/indigo/red)
+   so 21st.dev / shadcn components drop in looking native instead of
+   bringing their own light-mode-first defaults. This app is dark-only —
+   there is no light `:root` variant, deliberately. */
+@layer base {
+  :root {
+    --background: 231 30% 5%; /* ink-950 */
+    --foreground: 214 32% 91%; /* slate-200 */
+    --card: 235 30% 8%; /* ink-900 */
+    --card-foreground: 214 32% 91%; /* slate-200 */
+    --popover: 233 29% 12%; /* ink-800 */
+    --popover-foreground: 214 32% 91%; /* slate-200 */
+    --primary: 243 75% 59%; /* indigo-600 */
+    --primary-foreground: 210 40% 96%; /* slate-100 */
+    --secondary: 233 29% 12%; /* ink-800 */
+    --secondary-foreground: 214 32% 91%; /* slate-200 */
+    --muted: 233 29% 12%; /* ink-800 */
+    --muted-foreground: 215 20% 65%; /* slate-400 */
+    --accent: 232 25% 17%; /* ink-700 */
+    --accent-foreground: 214 32% 91%; /* slate-200 */
+    --destructive: 0 84% 60%; /* red-500 */
+    --destructive-foreground: 210 40% 96%; /* slate-100 */
+    --border: 232 25% 17%; /* ink-700 */
+    --input: 232 25% 17%; /* ink-700 */
+    --ring: 243 75% 59%; /* indigo-600 */
+    --radius: 0.75rem;
+  }
+}
+
 body {
   @apply bg-ink-950 text-slate-200 antialiased;
 }
