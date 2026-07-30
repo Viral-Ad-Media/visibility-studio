@@ -20,7 +20,7 @@ export default async function CampaignPage({ params }: { params: { id: string } 
   const rows = (await db
     .prepare(
       `SELECT cb.id, cb.campaign_id, cb.business_id, cb.stage,
-              cb.redesign_status, cb.redesign_error, cb.redesign_drive_url,
+              cb.redesign_status, cb.redesign_error,
               cb.booking_status, cb.booking_link, cb.booking_event_type, cb.booking_error,
               cb.created_at, cb.updated_at,
               b.name, b.category, b.location, b.website, b.maps_url, b.phone, b.email,

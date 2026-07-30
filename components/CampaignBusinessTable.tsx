@@ -197,17 +197,6 @@ function Row({ r }: { r: CampaignBusinessRow }) {
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> View mockup
                   </a>
-                  {r.redesign_drive_url && (
-                    <a
-                      href={r.redesign_drive_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-2.5 py-1.5 rounded-lg w-fit"
-                      title="Drive backup of the mockup HTML — opens as a downloadable file, not a rendered page"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" /> Drive backup
-                    </a>
-                  )}
                 </div>
               )}
               {r.redesign_status === "error" && r.redesign_error && (

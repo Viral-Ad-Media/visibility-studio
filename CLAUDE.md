@@ -6,10 +6,10 @@ Row Level Security via `account_id`. Both audits (`run_audit`/`audit_business` j
 (`build_redesign`/`create_booking_link` jobs — turning a selection of audited businesses into a
 coded homepage redesign mockup + a real Calendly booking link per business) are handled by **an
 automated Anthropic-API-based worker** (`lib/engine/*`) that drains `vis_jobs` the instant a row is
-inserted — no human runs anything (Phase C, verified live in production). The one exception is
-`backup_audit_csv` (archiving an audit's CSV to Google Drive), which is still **human-run via
-Claude Code** (`/run-campaigns`) — see "Google Drive backups" below. Sending outreach also stays a
-human action, outside this app.
+inserted — no human runs anything (Phase C, verified live in production). There is no Google Drive
+integration — as a SaaS product, audit CSVs export directly from the app (`/api/audits/{id}/csv`)
+rather than backing up to anyone's personal Drive. Sending outreach stays a human action, outside
+this app.
 
 ## The automated engine
 
@@ -44,15 +44,11 @@ automatically, near-instantly, with no human trigger:
   link (per-tenant OAuth token, see "Calendly OAuth" below) — the only difference is which stage
   function `lib/engine/worker.ts` dispatches to based on `job.type`.
 - `scripts/engine.ts` (the old `/run-audits`/`/run-campaigns` CLI) still exists as a **manual/debug
-  fallback** for all four automated job types — useful for inspecting a job's context or manually
+  fallback** for all four job types — useful for inspecting a job's context or manually
   driving/failing something stuck — but it is no longer the primary path for any of them.
-  `backup_audit_csv` is the one job type with no automated path at all — see "Google Drive
-  backups" below.
 
-**Vercel hosts the cockpit and the entire automated engine**, audits and campaigns alike. Only
-`backup_audit_csv` jobs are *not* drained by anything on Vercel — those still require a human
-running Claude Code locally with `DATABASE_URL` pointed at the same Supabase database, via
-`/run-campaigns`.
+**Vercel hosts the cockpit and the entire automated engine** — audits and campaigns alike drain
+with no human involvement.
 
 ## Routes
 
@@ -68,7 +64,7 @@ add cockpit pages back at the root, and don't add marketing pages under `/app`.
 | Skill | Trigger | What it does |
 |---|---|---|
 | `/run-audits` | manual/debug fallback only — audits now drain automatically, see "The automated engine" | drains pending `run_audit` / `audit_business` jobs by hand — finds businesses in the niche + location, audits each website, scrapes public contact emails, scores 1–5, drafts personalized outreach, and writes each business row back into the DB as it finishes |
-| `/run-campaigns` | clicking "Back up to Drive" (the only still-manual path) — or as a manual/debug fallback for `build_redesign`/`create_booking_link`, which otherwise drain automatically | drains pending `build_redesign` / `create_booking_link` / `backup_audit_csv` jobs — builds a self-contained HTML redesign mockup addressing that business's own findings, creates a real single-use Calendly booking link, and backs mockups/audit CSVs up to Google Drive |
+| `/run-campaigns` | manual/debug fallback only — campaigns now drain automatically, see "The automated engine" | drains pending `build_redesign` / `create_booking_link` jobs by hand — builds a self-contained HTML redesign mockup addressing that business's own findings and creates a real single-use Calendly booking link |
 
 ## Database
 
@@ -89,16 +85,15 @@ transactions. New code should keep using this shape rather than reaching for raw
 payload field use `(payload::json->>'field')::bigint = ?` rather than SQLite's old
 `json_extract(payload, '$.field')`.
 
-Tables: `vis_audits` (one per niche+location request; `csv_drive_url`/`csv_drive_backed_up_at`
-track the most recent Drive backup), `vis_businesses` (one row per audited business — mirrors the
-Business Visibility Auditor sheet schema; `crm_status` is the CRM column), `vis_campaigns` (one per
-audit — a named selection of that audit's businesses to pursue), `vis_campaign_businesses` (join
-table: `stage` is manual/user-only, never touched by the engine; `redesign_status`/`redesign_html`/
-`redesign_drive_url` and `booking_status`/`booking_link`/`booking_event_type` are engine-owned),
-`vis_jobs` (the queue: pending → running → done/error), `vis_settings`.
+Tables: `vis_audits` (one per niche+location request), `vis_businesses` (one row per audited
+business — mirrors the Business Visibility Auditor sheet schema; `crm_status` is the CRM column),
+`vis_campaigns` (one per audit — a named selection of that audit's businesses to pursue),
+`vis_campaign_businesses` (join table: `stage` is manual/user-only, never touched by the engine;
+`redesign_status`/`redesign_html` and `booking_status`/`booking_link`/`booking_event_type` are
+engine-owned), `vis_jobs` (the queue: pending → running → done/error), `vis_settings`.
 
-**CLI contract for `backup_audit_csv` (still human-run) and manual/debug driving of any other job
-type — always use the CLI, never hand-write SQL for queue mutations:**
+**CLI contract for manual/debug driving of any job type — always use the CLI, never hand-write SQL
+for queue mutations:**
 
 ```bash
 npm run engine -- pending                                    # list pending jobs + context (JSON)
@@ -113,20 +108,6 @@ Business fields, campaign summaries, and booking-link meta go through `--meta` J
 (currently just the redesign mockup HTML — painful to hand-escape into JSON). `add-business`
 dedupes on normalized website, then name+location. Read-only inspection queries can go through the
 Supabase MCP's `execute_sql` tool (project: Vam-dashboard) — no need for `DATABASE_URL` just to look.
-
-## Google Drive backups
-
-Google Drive is connected for **archival storage only** — it does not render arbitrary HTML+CSS
-as a live webpage, so a Drive-backed redesign mockup link offers the raw file for download, not a
-styled preview (the app's own `/api/campaign-businesses/{id}/redesign` route is still the only
-place to see it rendered). Audit CSVs, by contrast, convert cleanly to real Google Sheets and
-render properly on Drive. There's no delete/update tool on the connector — re-running a backup
-always creates a new Drive file rather than replacing the old one; only the most recent link is
-tracked (`audits.csv_drive_url` / `campaign_businesses.redesign_drive_url`).
-
-- Redesign mockups back up automatically as part of each `build_redesign` job.
-- Audit CSVs back up on demand — click **Back up to Drive** on an audit page, which queues a
-  `backup_audit_csv` job for `/run-campaigns` to drain.
 
 ## Settings
 
@@ -220,12 +201,12 @@ DATABASE_URL="postgres://..." npm run engine -- pending
 ```
 
 Campaign research/generation needs no other external services when run via `/run-campaigns` —
-Claude Code's own web tools handle it, and the Calendly and Google Drive MCP connectors already
-authorized in this environment handle campaigns (no new API keys for either). CSV export (per
-audit) matches the Business Visibility Auditor Google Sheets schema exactly, so it imports cleanly
-into a master sheet or a backed-up Drive copy.
+Claude Code's own web tools handle it, and the Calendly MCP connector already authorized in this
+environment handles booking links (no new API keys needed). CSV export (per audit) matches the
+Business Visibility Auditor Google Sheets schema exactly, so it imports cleanly into a master
+sheet if needed.
 
-The automated audit engine additionally needs `ANTHROPIC_API_KEY` (a dedicated key with billing
+The automated engine additionally needs `ANTHROPIC_API_KEY` (a dedicated key with billing
 enabled — this makes real, metered Messages API calls including `web_search` at $10/1,000 calls)
 and `ENGINE_WEBHOOK_SECRET` (matches the value in Supabase Vault). **`pg_net` can't reach
 `localhost`**, so the trigger/cron only ever fire against the deployed Vercel URL — to test the
@@ -233,5 +214,5 @@ engine locally, POST directly to `/api/engine/run` with the `x-engine-secret` he
 simulating what Supabase would call.
 
 On Vercel, set `DATABASE_URL`, `ANTHROPIC_API_KEY`, and `ENGINE_WEBHOOK_SECRET` as project
-environment variables — see the "Vercel hosts the cockpit and the automated audit engine" note
+environment variables — see the "Vercel hosts the cockpit and the entire automated engine" note
 above for what that does and doesn't mean.

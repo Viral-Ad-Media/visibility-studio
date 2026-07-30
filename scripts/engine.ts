@@ -5,7 +5,6 @@
  *   npm run engine -- claim <jobId>             mark a job running, print its full context (JSON)
  *   npm run engine -- add-business <auditId> --meta <file.json>
  *                                               upsert one audited business row into an audit
- *   npm run engine -- export-csv <auditId>      print that audit's CSV to stdout (for Drive backup)
  *   npm run engine -- complete <jobId> [--content <file>] [--meta <file.json>]
  *   npm run engine -- fail <jobId> --message "<why>"
  *
@@ -20,9 +19,7 @@
  *   audit_business       — meta is the business fields (same shape as add-business);
  *                           the row is upserted before the job is closed.
  *   build_redesign        — --content <file.html> is required (the raw mockup HTML, unescaped).
- *                           meta may optionally add {drive_url} once it's backed up to Drive.
  *   create_booking_link  — meta is {booking_link, booking_event_type}.
- *   backup_audit_csv     — meta is {drive_url} (required) once the CSV is uploaded to Drive.
  *
  * This CLI has no browser session to impersonate, so it runs against
  * `serviceDb` (the raw, full-privilege connection — RLS doesn't apply here)
@@ -31,7 +28,6 @@
  */
 import fs from "fs";
 import { serviceDb as db } from "../lib/db";
-import { buildAuditCsv } from "../lib/csv";
 import { upsertBusiness as upsertBusinessRow } from "../lib/business-upsert";
 
 const OPERATOR_ACCOUNT_ID = Number(process.env.VIS_OPERATOR_ACCOUNT_ID);
@@ -168,14 +164,6 @@ async function main() {
       process.exit(1);
     }
     await upsertBusiness(auditId, readMeta(true));
-  } else if (cmd === "export-csv") {
-    const auditId = Number(process.argv[3]);
-    const result = await buildAuditCsv(auditId, db);
-    if (!result) {
-      console.error(`No audit ${auditId}`);
-      process.exit(1);
-    }
-    process.stdout.write(result.csv);
   } else if (cmd === "complete") {
     const id = Number(process.argv[3]);
     const job = (await db
@@ -186,11 +174,7 @@ async function main() {
       process.exit(1);
     }
     const payload = JSON.parse(job.payload || "{}");
-    const meta = readMeta(
-      job.type === "audit_business" ||
-        job.type === "create_booking_link" ||
-        job.type === "backup_audit_csv"
-    );
+    const meta = readMeta(job.type === "audit_business" || job.type === "create_booking_link");
 
     if (job.type === "run_audit") {
       await db
@@ -210,24 +194,10 @@ async function main() {
         .prepare(
           `UPDATE vis_campaign_businesses SET
              redesign_status='ready', redesign_error=NULL, redesign_html=@html,
-             redesign_drive_url=COALESCE(@drive_url, redesign_drive_url),
              updated_at=now()::text
            WHERE id=@id`
         )
-        .run({ id: payload.campaign_business_id, html, drive_url: meta.drive_url ?? null });
-    } else if (job.type === "backup_audit_csv") {
-      if (!meta.drive_url) {
-        console.error("--meta with at least {drive_url} is required for backup_audit_csv jobs");
-        process.exit(1);
-      }
-      await db
-        .prepare(
-          `UPDATE vis_audits SET
-             csv_drive_url=@drive_url, csv_drive_backed_up_at=now()::text,
-             updated_at=now()::text
-           WHERE id=@id`
-        )
-        .run({ id: payload.audit_id, drive_url: meta.drive_url });
+        .run({ id: payload.campaign_business_id, html });
     } else if (job.type === "create_booking_link") {
       if (!meta.booking_link) {
         console.error(

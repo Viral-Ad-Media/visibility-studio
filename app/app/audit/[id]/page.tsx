@@ -6,7 +6,6 @@ import AutoRefresh from "@/components/AutoRefresh";
 import BusinessTable from "@/components/BusinessTable";
 import RequeueButton from "@/components/RequeueButton";
 import AuditActions from "@/components/AuditActions";
-import BackupToDriveButton from "@/components/BackupToDriveButton";
 
 export const dynamic = "force-dynamic";
 
@@ -67,13 +66,6 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
             >
               Export CSV
             </a>
-          )}
-          {businesses.length > 0 && (
-            <BackupToDriveButton
-              auditId={audit.id}
-              driveUrl={audit.csv_drive_url}
-              backedUpAt={audit.csv_drive_backed_up_at}
-            />
           )}
           {(audit.status === "error" || audit.status === "ready") && (
             <RequeueButton auditId={audit.id} />

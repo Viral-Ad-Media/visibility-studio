@@ -1,13 +1,14 @@
 ---
 name: run-campaigns
-description: Drain pending Visibility Studio campaign jobs — for each business added to a campaign, build a coded homepage redesign mockup addressing that business's own audit findings, generate a real Calendly booking link, and back mockups/audit CSVs up to Google Drive. Writes results back into the Postgres database so they appear in the app.
+description: Manual/debug fallback for Visibility Studio's campaign jobs — build_redesign and create_booking_link now drain automatically in production (see CLAUDE.md, "The automated engine"). Use this skill to inspect a job's context or manually drive/fail something stuck. For each business added to a campaign, builds a coded homepage redesign mockup addressing that business's own audit findings and generates a real Calendly booking link, writing results back into Postgres so they appear in the app.
 ---
 
-# Run queued campaign jobs
+# Run queued campaign jobs (manual/debug fallback)
 
-You are the engine for Visibility Studio's campaign phase and its Drive backups. Execute every
-pending `build_redesign`, `create_booking_link`, and `backup_audit_csv` job in the queue. Requires
-`DATABASE_URL` set (the Supabase Postgres pooled connection string — see CLAUDE.md).
+`build_redesign` and `create_booking_link` jobs process automatically in production via
+`lib/engine/worker.ts` — no human runs anything under normal operation. Use this skill only to
+inspect a job's context or manually drive/fail something stuck. Requires `DATABASE_URL` set (the
+Supabase Postgres pooled connection string — see CLAUDE.md).
 
 ## The job loop
 
@@ -18,49 +19,17 @@ All queue access goes through the engine CLI (never hand-write SQL against the d
    findings, headline, CTA) and `campaign_business` (current stage/statuses).
 2. **Claim it**: `npm run engine -- claim <jobId>` — flips the matching status
    (`redesign_status` or `booking_status`) to `running` so the UI shows progress.
-   `backup_audit_csv` jobs have no status column to flip — just claim and proceed.
 3. Do the work (rules below).
 4. **Complete it**:
-   - `build_redesign`: write the full mockup to a scratchpad `.html` file, upload it to Drive
-     (rules below), then
-     `npm run engine -- complete <jobId> --content /path/mockup.html --meta /path/meta.json`
-     where meta is `{"drive_url": "<the Drive file's webViewLink>"}` — `drive_url` is optional;
-     if the Drive upload fails, still complete the job with just `--content` so the mockup shows
-     up in the app, and mention the backup failure in your summary rather than failing the job.
+   - `build_redesign`: write the full mockup to a scratchpad `.html` file, then
+     `npm run engine -- complete <jobId> --content /path/mockup.html`.
    - `create_booking_link`: write `{"booking_link": "...", "booking_event_type": "..."}` to a
      scratchpad `.json` file, then
      `npm run engine -- complete <jobId> --meta /path/meta.json`.
-   - `backup_audit_csv`: `npm run engine -- export-csv <auditId> > /path/audit.csv`, upload it to
-     Drive (rules below), then
-     `npm run engine -- complete <jobId> --meta /path/meta.json` where meta is
-     `{"drive_url": "<the Drive file's webViewLink>"}` (required — fail the job if the upload
-     itself fails, since there's nothing else for this job to do).
 5. If a job can't be completed, `npm run engine -- fail <jobId> --message "<why>"` — never leave
    a job stuck in `running`.
-6. When the queue is drained, report a summary: mockups built, booking links created, CSVs backed
-   up, and the campaign(s)/audit(s) they belong to.
-
-## Drive backups (`build_redesign` and `backup_audit_csv` jobs)
-
-Google Drive is connected for archival/backup storage only — **it does not render arbitrary
-HTML+CSS as a live webpage.** Opening a Drive link to an uploaded mockup offers the raw file for
-download/source view, not a styled page (unlike Docs/Sheets, Drive has no "publish as a rendered
-page" for arbitrary HTML). Never describe a Drive-backed mockup link to the user as a "shareable
-preview" — the interactive, correctly-rendered view is the app's own
-`/api/campaign-businesses/{id}/redesign` route. Drive's job here is just: keep an off-machine copy.
-
-- **Mockup HTML** (`build_redesign`): `create_file` with `content_mime_type: "text/html"` and
-  `disable_conversion_to_google_type: true` — converting to a Google Doc would strip all the CSS,
-  making the backup less useful than the raw file. Title it something like
-  `"{Business Name} — Homepage Concept — {date}"`.
-- **Audit CSV** (`backup_audit_csv`): `create_file` with `content_mime_type: "text/csv"` and
-  **leave conversion enabled** (omit `disable_conversion_to_google_type`, or set it `false`) — CSV
-  → Google Sheets is a real, well-supported conversion and gives a properly rendered, sortable
-  sheet, unlike the HTML case. Title it `"{audit query} — Audit Backup — {date}"`.
-- There's no delete/update tool on the Drive connector — re-running a backup (regenerating a
-  mockup, or backing up an audit again) creates a **new** Drive file rather than replacing the old
-  one. Only the most recent link is tracked in the app; older backups remain in Drive untracked.
-  Don't try to work around this — it's an accepted limitation of the "backup archive" framing.
+6. When the queue is drained, report a summary: mockups built, booking links created, and the
+   campaign(s) they belong to.
 
 ## Redesign mockups (`build_redesign` jobs)
 

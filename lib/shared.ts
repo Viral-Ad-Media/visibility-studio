@@ -10,8 +10,6 @@ export type Audit = {
   status: "queued" | "running" | "ready" | "error";
   summary_md: string | null;
   error: string | null;
-  csv_drive_url: string | null;
-  csv_drive_backed_up_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -51,7 +49,7 @@ export type Business = {
 
 export type Job = {
   id: number;
-  type: "run_audit" | "audit_business" | "build_redesign" | "create_booking_link" | "backup_audit_csv";
+  type: "run_audit" | "audit_business" | "build_redesign" | "create_booking_link";
   payload: string;
   status: "pending" | "running" | "done" | "error";
   result: string | null;
@@ -80,7 +78,6 @@ export type CampaignBusiness = {
   booking_link: string | null;
   booking_event_type: string | null;
   booking_error: string | null;
-  redesign_drive_url: string | null;
   created_at: string;
   updated_at: string;
 };

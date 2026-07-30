@@ -4,7 +4,7 @@ import {
   FileSpreadsheet,
   Wand2,
   CalendarCheck,
-  HardDriveUpload,
+  Download,
   KanbanSquare,
 } from "lucide-react";
 
@@ -35,9 +35,9 @@ const FEATURES = [
     body: "Each campaign business gets a coded homepage redesign concept addressing its own audit findings, plus a real, single-use booking link — ready to attach to your outreach.",
   },
   {
-    icon: HardDriveUpload,
+    icon: Download,
     title: "Export everything",
-    body: "One-click CSV export matching a standard audit-sheet schema, plus automatic Google Drive backups of every mockup and audit.",
+    body: "One-click CSV export for every audit, matching a standard audit-sheet schema so it drops straight into your own workflow.",
   },
 ];
 

@@ -26,7 +26,6 @@ const TIERS = [
       "Up to 300 audited businesses / month",
       "Unlimited campaigns",
       "Redesign concepts + booking links",
-      "Google Drive backups",
       "CSV export",
     ],
   },

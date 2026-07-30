@@ -21,7 +21,7 @@ const FAQS = [
   },
   {
     q: "Can I get the data out?",
-    a: "Yes — one-click CSV export per audit, and automatic Google Drive backups of every redesign concept and audit CSV as they're generated.",
+    a: "Yes — one-click CSV export per audit, and every redesign mockup is viewable directly from its campaign at any time.",
   },
   {
     q: "What happens with a business that doesn't have a website, or is unreachable?",
