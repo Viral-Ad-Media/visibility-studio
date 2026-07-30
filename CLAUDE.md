@@ -2,17 +2,19 @@
 
 Multi-tenant business-visibility audit SaaS. The Next.js app (deployed on Vercel) is the visual
 cockpit; **Supabase (Postgres + Auth) is the database**, with every tenant-owned table scoped by
-Row Level Security via `account_id`. Audits (`run_audit`/`audit_business` jobs) are handled by
-**an automated Anthropic-API-based worker** (`lib/engine/*`) that drains `vis_jobs` the instant a
-row is inserted — no human runs anything. Campaigns (`build_redesign`/`create_booking_link`
-jobs — turning a selection of audited businesses into a coded homepage redesign mockup + a real
-Calendly booking link per business) are still **human-run via Claude Code** (`/run-campaigns`);
-that's Phase C scope, not yet automated. Sending outreach stays a human action either way, outside
-this app.
+Row Level Security via `account_id`. Both audits (`run_audit`/`audit_business` jobs) and campaigns
+(`build_redesign`/`create_booking_link` jobs — turning a selection of audited businesses into a
+coded homepage redesign mockup + a real Calendly booking link per business) are handled by **an
+automated Anthropic-API-based worker** (`lib/engine/*`) that drains `vis_jobs` the instant a row is
+inserted — no human runs anything (Phase C, verified live in production). The one exception is
+`backup_audit_csv` (archiving an audit's CSV to Google Drive), which is still **human-run via
+Claude Code** (`/run-campaigns`) — see "Google Drive backups" below. Sending outreach also stays a
+human action, outside this app.
 
 ## The automated engine
 
-`run_audit`/`audit_business` jobs process automatically, near-instantly, with no human trigger:
+`run_audit`/`audit_business`/`build_redesign`/`create_booking_link` jobs all process
+automatically, near-instantly, with no human trigger:
 
 - **Trigger**: a Postgres trigger on `vis_jobs` (`on_vis_job_inserted`, via the `pg_net` extension)
   POSTs to `app/api/engine/run` the instant a row is inserted. A `pg_cron` job
@@ -36,15 +38,21 @@ this app.
   (`vis_jobs.attempts`) before being marked terminally `error`; a single business permanently
   failing doesn't fail the whole audit. The last `audit_business` job for an audit to finish
   triggers a **deterministic templated** `summary_md` (top opportunities, counts) — not another
-  Claude call — and marks the audit `ready`.
-- `scripts/engine.ts` (the old `/run-audits` CLI) still exists as a **manual/debug fallback** for
-  audits — useful for inspecting a job's context or manually driving/failing something stuck — but
-  it is no longer the primary path. It's still the *primary* path for campaigns (see below).
+  Claude call — and marks the audit `ready`. `build_redesign`/`create_booking_link` jobs work the
+  same way through the same worker/claim/retry mechanics — `lib/engine/redesign.ts` generates the
+  mockup via a plain-text Claude call, `lib/engine/booking.ts` creates a real Calendly booking
+  link (per-tenant OAuth token, see "Calendly OAuth" below) — the only difference is which stage
+  function `lib/engine/worker.ts` dispatches to based on `job.type`.
+- `scripts/engine.ts` (the old `/run-audits`/`/run-campaigns` CLI) still exists as a **manual/debug
+  fallback** for all four automated job types — useful for inspecting a job's context or manually
+  driving/failing something stuck — but it is no longer the primary path for any of them.
+  `backup_audit_csv` is the one job type with no automated path at all — see "Google Drive
+  backups" below.
 
-**Vercel hosts the cockpit and the automated audit engine.** Campaign jobs
-(`build_redesign`/`create_booking_link`/`backup_audit_csv`) are *not* drained by anything on
-Vercel — those still require a human running Claude Code locally with `DATABASE_URL` pointed at
-the same Supabase database, via `/run-campaigns`.
+**Vercel hosts the cockpit and the entire automated engine**, audits and campaigns alike. Only
+`backup_audit_csv` jobs are *not* drained by anything on Vercel — those still require a human
+running Claude Code locally with `DATABASE_URL` pointed at the same Supabase database, via
+`/run-campaigns`.
 
 ## Routes
 
@@ -60,7 +68,7 @@ add cockpit pages back at the root, and don't add marketing pages under `/app`.
 | Skill | Trigger | What it does |
 |---|---|---|
 | `/run-audits` | manual/debug fallback only — audits now drain automatically, see "The automated engine" | drains pending `run_audit` / `audit_business` jobs by hand — finds businesses in the niche + location, audits each website, scrapes public contact emails, scores 1–5, drafts personalized outreach, and writes each business row back into the DB as it finishes |
-| `/run-campaigns` | after creating a campaign, or clicking "Back up to Drive" — still the primary path, not automated | drains pending `build_redesign` / `create_booking_link` / `backup_audit_csv` jobs — builds a self-contained HTML redesign mockup addressing that business's own findings, creates a real single-use Calendly booking link, and backs mockups/audit CSVs up to Google Drive |
+| `/run-campaigns` | clicking "Back up to Drive" (the only still-manual path) — or as a manual/debug fallback for `build_redesign`/`create_booking_link`, which otherwise drain automatically | drains pending `build_redesign` / `create_booking_link` / `backup_audit_csv` jobs — builds a self-contained HTML redesign mockup addressing that business's own findings, creates a real single-use Calendly booking link, and backs mockups/audit CSVs up to Google Drive |
 
 ## Database
 
@@ -89,8 +97,8 @@ table: `stage` is manual/user-only, never touched by the engine; `redesign_statu
 `redesign_drive_url` and `booking_status`/`booking_link`/`booking_event_type` are engine-owned),
 `vis_jobs` (the queue: pending → running → done/error), `vis_settings`.
 
-**CLI contract for campaign jobs (still human-run) and manual audit debugging — always use the
-CLI, never hand-write SQL for queue mutations:**
+**CLI contract for `backup_audit_csv` (still human-run) and manual/debug driving of any other job
+type — always use the CLI, never hand-write SQL for queue mutations:**
 
 ```bash
 npm run engine -- pending                                    # list pending jobs + context (JSON)
@@ -123,8 +131,10 @@ tracked (`audits.csv_drive_url` / `campaign_businesses.redesign_drive_url`).
 ## Settings
 
 `GET`/`PUT /api/settings` (or the `/settings` page) reads/writes the `settings` key/value table.
-Currently one key: `calendly_event_type_uri` — which Calendly event type `/run-campaigns` should
-use for booking links. Leave unset and the skill auto-picks the host's first active event type.
+Currently one key: `calendly_event_type_uri` — which Calendly event type `create_booking_link`
+jobs should use for booking links (both the automated engine and the `/run-campaigns` manual
+fallback read this same setting). Leave unset and the engine auto-picks via a Claude judgment call
+over the connected account's active event types.
 
 ## Billing (Stripe) and access control
 

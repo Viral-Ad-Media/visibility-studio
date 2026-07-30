@@ -67,9 +67,8 @@ export default async function CampaignPage({ params }: { params: { id: string } 
 
       {inFlight && (
         <div className="mt-4 card p-3 text-sm text-slate-400">
-          The engine is generating redesign mockups and booking links — run{" "}
-          <code className="text-indigo-400">/run-campaigns</code> in Claude Code if it isn&apos;t
-          already running.
+          The engine is generating redesign mockups and booking links automatically — this page
+          refreshes as they land.
         </div>
       )}
 

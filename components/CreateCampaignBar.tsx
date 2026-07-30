@@ -75,9 +75,8 @@ export default function CreateCampaignBar({
               </button>
             </div>
             <p className="text-xs text-slate-500">
-              {selectedIds.length} businesses selected. The engine will generate a homepage
-              redesign mockup and a booking link for each — run{" "}
-              <code className="text-indigo-400">/run-campaigns</code> in Claude Code afterward.
+              {selectedIds.length} businesses selected. The engine will automatically generate a
+              homepage redesign mockup and a booking link for each.
             </p>
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">

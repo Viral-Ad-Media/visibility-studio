@@ -105,10 +105,7 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
       {inProgress && businesses.length === 0 && (
         <div className="mt-6 card p-10 text-center text-slate-400 text-sm">
           {audit.status === "queued" ? (
-            <>
-              Waiting for the engine — run <code className="text-indigo-400">/run-audits</code> in
-              Claude Code from this project folder.
-            </>
+            "Waiting for the engine to pick this up — starts automatically, usually within a minute."
           ) : (
             "The engine is researching businesses… results appear here as each audit lands."
           )}
