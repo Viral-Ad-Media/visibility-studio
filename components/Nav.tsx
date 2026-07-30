@@ -82,9 +82,7 @@ export default function Nav({
           </button>
         </form>
         <div className="px-3 pb-1 text-[11px] text-slate-600 leading-relaxed">
-          Audits and campaigns run automatically — no need to run anything yourself. Drive
-          backups still need <code className="text-indigo-500">/run-campaigns</code> in Claude
-          Code.
+          Audits and campaigns run automatically — no need to run anything yourself.
         </div>
       </div>
       <ProductTour />
