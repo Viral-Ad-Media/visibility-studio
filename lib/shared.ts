@@ -119,6 +119,30 @@ export const CAMPAIGN_STAGES = [
 
 export const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
 
+// Unified CRM view over vis_businesses — every audited business (across all audits) that has a
+// found email, joined to its audit and (if any) its latest campaign membership. Not a separate
+// table: this app has no public lead-capture surface, so "contacts" here means the businesses
+// the engine already found, not third-party opt-in leads.
+export type Contact = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  category: string | null;
+  location: string | null;
+  website: string | null;
+  priority: "High" | "Medium" | "Low" | null;
+  crm_status: string;
+  outreach_subject: string | null;
+  outreach_email: string | null;
+  audit_id: number;
+  audit_query: string;
+  campaign_id: number | null;
+  campaign_name: string | null;
+  campaign_stage: string | null;
+  created_at: string;
+};
+
 export type Account = {
   id: number;
   name: string;
