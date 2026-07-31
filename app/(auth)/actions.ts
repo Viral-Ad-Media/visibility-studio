@@ -20,11 +20,13 @@ export async function login(formData: FormData) {
 export async function signup(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const ref = String(formData.get("ref") ?? "").trim();
+  const refQuery = ref ? `?ref=${encodeURIComponent(ref)}` : "";
 
   const { data, error } = await supabaseServerClient().auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding` },
+    options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding${refQuery}` },
   });
   if (error) {
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);
@@ -34,7 +36,7 @@ export async function signup(formData: FormData) {
     // onboard into yet.
     redirect("/login?checkEmail=1");
   }
-  redirect("/onboarding");
+  redirect(`/onboarding${refQuery}`);
 }
 
 export async function logout() {
@@ -73,9 +75,14 @@ export async function createAccount(formData: FormData) {
   if (!name) {
     redirect("/onboarding?error=" + encodeURIComponent("Account name is required"));
   }
+  const ref = String(formData.get("ref") ?? "").trim() || null;
   // Explicit cast: pg sends bare params with no type OID ("unknown"), and a
   // direct function call (unlike an INSERT/UPDATE) has no column to infer
   // the type from, so Postgres can't resolve the overload without a hint.
-  await db.prepare("SELECT vis_create_account_with_owner(@name::text) AS id").get({ name });
+  // An unknown/garbage ref code is a silent no-op inside the RPC itself —
+  // never blocks account creation over a bad referral link.
+  await db
+    .prepare("SELECT vis_create_account_with_owner(@name::text, @ref::text) AS id")
+    .get({ name, ref });
   redirect("/app");
 }

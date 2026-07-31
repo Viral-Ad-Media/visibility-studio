@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings, LogOut, History, Wallet, Clock, Users, Send } from "lucide-react";
+import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings, LogOut, History, Wallet, Clock, Users, Send, Gift } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
 import ProductTour from "./ProductTour";
 
@@ -12,6 +12,7 @@ const links = [
   { href: "/app/campaigns", label: "Campaigns", icon: Megaphone, tourId: "tour-nav-campaigns" },
   { href: "/app/contacts", label: "Contacts", icon: Users, tourId: "tour-nav-contacts" },
   { href: "/app/broadcast", label: "Broadcast", icon: Send, tourId: "tour-nav-broadcast" },
+  { href: "/app/referrals", label: "Referrals", icon: Gift, tourId: "tour-nav-referrals" },
   { href: "/app/audit-trail", label: "Audit trail", icon: History, tourId: "tour-nav-audit-trail" },
   { href: "/app/settings", label: "Settings", icon: Settings, tourId: "tour-nav-settings" },
 ];

@@ -6,11 +6,16 @@ const input =
   "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
   "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30";
 
-export default function SignupPage({ searchParams }: { searchParams: { error?: string } }) {
+export default function SignupPage({
+  searchParams,
+}: {
+  searchParams: { error?: string; ref?: string };
+}) {
   return (
     <form action={signup} className="card p-6 space-y-4 animate-fade-in-up">
       <h1 className="text-lg font-semibold text-slate-100">Create your account</h1>
       {searchParams.error && <p className="text-sm text-red-400">{searchParams.error}</p>}
+      {searchParams.ref && <input type="hidden" name="ref" value={searchParams.ref} />}
 
       <div>
         <label className="block text-xs font-medium text-slate-400 mb-1.5">Email</label>

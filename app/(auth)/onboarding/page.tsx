@@ -12,7 +12,7 @@ const input =
 export default function OnboardingPage({
   searchParams,
 }: {
-  searchParams: { error?: string; step?: string };
+  searchParams: { error?: string; step?: string; ref?: string };
 }) {
   if (searchParams.step === "2") {
     return (
@@ -23,6 +23,7 @@ export default function OnboardingPage({
           This is the workspace your audits and campaigns will live under.
         </p>
         {searchParams.error && <p className="text-sm text-red-400">{searchParams.error}</p>}
+        {searchParams.ref && <input type="hidden" name="ref" value={searchParams.ref} />}
 
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5">Account name</label>
@@ -82,7 +83,7 @@ export default function OnboardingPage({
         </li>
       </ul>
       <Link
-        href="/onboarding?step=2"
+        href={`/onboarding?step=2${searchParams.ref ? `&ref=${encodeURIComponent(searchParams.ref)}` : ""}`}
         className="block w-full text-center bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
       >
         Continue
