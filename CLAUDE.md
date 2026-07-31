@@ -242,6 +242,43 @@ second reward mechanism.
   than a real signup: referral created `pending` on signup, flipped to `rewarded` with both
   `$10` ledger rows written on trial-start, then confirmed zero residue after rollback.
 
+## Platform admin
+
+`/admin` (`app/admin/page.tsx`) is a cross-tenant operator dashboard — not a tenant feature, and
+not reachable through the normal `/app/*` cockpit at all (it's a standalone top-level route, same
+shape as `/billing`, outside both the `(auth)`/`(marketing)` route groups and `/app/*`'s sidebar
+layout).
+
+- **Access control is a dedicated `vis_accounts.is_platform_admin boolean`**, deliberately
+  separate from `vis_account_users.role` (`'owner'`/`'member'`), which is scoped to one tenant's
+  own account and has no concept of platform-wide privilege. Migration `vis_platform_admin`
+  grandfathered the one real account (`id = 1`) to `true`; there is no self-service or UI path to
+  set this flag on any other account — it's operator-only, set by hand via `execute_sql`/a
+  migration, same trust tier as everything else that bypasses RLS in this app.
+- **The page does its own session + admin check**, the same self-gating pattern `/billing` already
+  established — `middleware.ts`'s matcher only covers `/app/:path*` and `/api/:path*`, so a
+  top-level route like this is never protected by middleware and must check
+  `supabaseServerClient().auth.getUser()` itself (redirect `/login`), then read the current
+  account's `is_platform_admin` via the impersonated `db` connection and redirect to `/app` if
+  false.
+- **Every cross-tenant read goes through `serviceDb`** (bypasses RLS by design) — same trust
+  boundary as the Team feature's `auth.users` join. Shows: platform-wide stat cards (account
+  count, access/trial split, total credit balance, total estimated Claude spend all-time, job
+  queue depth by status), a per-account table (members/audits/campaigns/credit balance), and the
+  last 20 errored jobs across every tenant (account, type, attempts, error text) — meant for
+  spotting a stuck queue or a billing problem (e.g. a dead Anthropic key) before a tenant reports
+  it.
+- **A real bug caught during verification, not assumed away**: `vis_accounts.created_at`/
+  `trial_ends_at` are genuine `timestamptz` columns (unlike `vis_audits`/`vis_jobs`, which store
+  these as `TEXT` for historical reasons) — `pg`'s driver returns those as JS `Date` objects, not
+  strings, so the naive `.slice(0, 10)` pattern used everywhere else in this codebase threw at
+  runtime here. Fixed with `new Date(value).toISOString().slice(0, 10)`. Worth remembering before
+  copy-pasting that date-formatting idiom onto any other `timestamptz` column.
+- **Sidebar link is conditional**, not a hardcoded route only you know about: `app/app/layout.tsx`
+  selects `is_platform_admin` alongside the existing account row and passes it to `Nav.tsx`, which
+  renders a distinctly-styled (rose, not indigo) "Admin" link only when true — every other account
+  never sees it at all.
+
 ## Content rules (non-negotiable)
 
 1. **Never fabricate** emails, phone numbers, ratings, review counts, rankings, or site facts.

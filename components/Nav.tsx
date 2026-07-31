@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings, LogOut, History, Wallet, Clock, Users, Send, Gift } from "lucide-react";
+import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings, LogOut, History, Wallet, Clock, Users, Send, Gift, ShieldAlert } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
 import ProductTour from "./ProductTour";
 
@@ -21,10 +21,12 @@ export default function Nav({
   creditBalance,
   onTrial,
   trialDaysLeft,
+  isPlatformAdmin,
 }: {
   creditBalance: number;
   onTrial: boolean;
   trialDaysLeft: number;
+  isPlatformAdmin?: boolean;
 }) {
   const pathname = usePathname();
   return (
@@ -55,6 +57,16 @@ export default function Nav({
         );
       })}
       <div className="mt-auto space-y-3">
+        {isPlatformAdmin && (
+          <Link
+            href="/admin"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-rose-300 bg-rose-500/10 hover:bg-rose-500/15"
+            title="Cross-tenant platform admin dashboard"
+          >
+            <ShieldAlert className="w-4 h-4 shrink-0" />
+            Admin
+          </Link>
+        )}
         {onTrial && (
           <Link
             href="/billing"
