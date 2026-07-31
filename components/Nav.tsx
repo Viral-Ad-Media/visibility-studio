@@ -11,7 +11,7 @@ const links = [
   { href: "/app/new", label: "New audit", icon: SearchCheck, tourId: "tour-nav-new-audit" },
   { href: "/app/campaigns", label: "Campaigns", icon: Megaphone, tourId: "tour-nav-campaigns" },
   { href: "/app/contacts", label: "Contacts", icon: Users, tourId: "tour-nav-contacts" },
-  { href: "/app/broadcast", label: "Broadcast", icon: Send, tourId: "tour-nav-broadcast" },
+  { href: "/app/emails", label: "Emails", icon: Send, tourId: "tour-nav-emails" },
   { href: "/app/referrals", label: "Referrals", icon: Gift, tourId: "tour-nav-referrals" },
   { href: "/app/audit-trail", label: "Audit trail", icon: History, tourId: "tour-nav-audit-trail" },
   { href: "/app/settings", label: "Settings", icon: Settings, tourId: "tour-nav-settings" },

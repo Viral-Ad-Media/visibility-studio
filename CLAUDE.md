@@ -59,7 +59,7 @@ database. The actual cockpit (audits, campaigns, settings — everything that us
 now lives under **`/app/*`** (`app/app/`), with its own layout carrying the sidebar `Nav`. Don't
 add cockpit pages back at the root, and don't add marketing pages under `/app`.
 
-## Contacts and Broadcast
+## Contacts and Emails
 
 Two read/write UI surfaces over data the engine already produces — no new tables, no new job
 types. Deliberately **not** a port of what a sibling project (clickbank-studio) calls "Contacts"/
@@ -73,16 +73,17 @@ scope was explicitly confirmed with the user before building rather than assumed
   membership, so a business shows its campaign context if it has one. Search, per-row CRM status
   change (reuses the existing `PATCH /api/businesses/[id]`), and a client-side CSV export — same
   shape as every other CSV export in this app.
-- **Broadcast** (`app/app/broadcast/page.tsx` + `components/BroadcastQueue.tsx`) is a bulk
-  outreach queue, narrowed to businesses that also have a drafted `outreach_email`. Multi-select
-  + a sticky bottom action bar (same fixed-bottom-bar pattern as `CreateCampaignBar.tsx`) to copy
-  every selected draft at once or bulk-mark them `Contacted`. Per-row actions are a `mailto:` link
-  (opens the user's own mail client, prefilled) and a single-draft copy button. **There is no
-  send button and no mail provider integration** — this stays consistent with content rule 8
-  below (outreach delivery is always a manual, human step); it only makes queuing/copying/
-  tracking that manual step across many contacts faster.
+- **Emails** (`app/app/emails/page.tsx` + `components/EmailQueue.tsx`, originally named
+  "Broadcast" — renamed for clarity, no behavior change) is a bulk outreach queue, narrowed to
+  businesses that also have a drafted `outreach_email`. Multi-select + a sticky bottom action bar
+  (same fixed-bottom-bar pattern as `CreateCampaignBar.tsx`) to copy every selected draft at once
+  or bulk-mark them `Contacted`. Per-row actions are a `mailto:` link (opens the user's own mail
+  client, prefilled) and a single-draft copy button. **There is no send button and no mail
+  provider integration** — this stays consistent with content rule 8 below (outreach delivery is
+  always a manual, human step); it only makes queuing/copying/tracking that manual step across
+  many contacts faster.
 - **`PATCH /api/businesses/bulk-status`** (new) is the only new route — updates `crm_status` for
-  an array of business ids in one call (`WHERE id = ANY(?)`), used by Broadcast's bulk
+  an array of business ids in one call (`WHERE id = ANY(?)`), used by Emails' bulk
   "Mark as Contacted". Scoped by the same impersonated `db` connection (real RLS) as every other
   business write in this app; no service-role bypass.
 

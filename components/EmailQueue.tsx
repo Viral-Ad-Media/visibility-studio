@@ -85,7 +85,7 @@ function Row({
   );
 }
 
-export default function BroadcastQueue({ contacts }: { contacts: Contact[] }) {
+export default function EmailQueue({ contacts }: { contacts: Contact[] }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
   const router = useRouter();

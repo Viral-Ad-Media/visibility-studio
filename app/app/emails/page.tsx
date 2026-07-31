@@ -1,10 +1,10 @@
 import { Send } from "lucide-react";
 import db, { Contact } from "@/lib/db";
-import BroadcastQueue from "@/components/BroadcastQueue";
+import EmailQueue from "@/components/EmailQueue";
 
 export const dynamic = "force-dynamic";
 
-export default async function BroadcastPage() {
+export default async function EmailsPage() {
   // Same shape as Contacts, narrowed to businesses with an actual drafted
   // outreach email — those are the only ones there's anything to send.
   const contacts = (await db
@@ -28,7 +28,7 @@ export default async function BroadcastPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Broadcast</h1>
+          <h1 className="text-2xl font-bold text-slate-100">Emails</h1>
           <p className="text-sm text-slate-500 mt-1">
             Bulk outreach queue — select contacts with a drafted email, then copy or open each
             one in your own mail client. Sending always stays a manual, human step.
@@ -41,13 +41,13 @@ export default async function BroadcastPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-ink-700 bg-ink-800">
             <Send className="h-5 w-5 text-indigo-400" />
           </div>
-          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">Nothing to broadcast yet</h2>
+          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">Nothing to send yet</h2>
           <p className="mx-auto max-w-sm text-sm text-slate-400">
             Contacts show up here once an audit drafts a personalized outreach email for them.
           </p>
         </div>
       ) : (
-        <BroadcastQueue contacts={contacts} />
+        <EmailQueue contacts={contacts} />
       )}
     </div>
   );
