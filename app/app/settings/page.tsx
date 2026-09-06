@@ -1,4 +1,5 @@
-import db, { getCurrentAccountId, serviceDb } from "@/lib/db";
+import db, { getCurrentMembership, serviceDb } from "@/lib/db";
+import { listMyInvitations } from "@/lib/team";
 import { supabaseServerClient } from "@/lib/supabase-server";
 import { getConnectionStatus, listEventTypes, type CalendlyEventType } from "@/lib/engine/calendly";
 import SettingsTabs from "@/components/settings/SettingsTabs";
@@ -9,12 +10,12 @@ import IntegrationsSection from "@/components/settings/IntegrationsSection";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const accountId = await getCurrentAccountId();
+  const { accountId, role: currentRole } = await getCurrentMembership();
   const {
     data: { user },
   } = await supabaseServerClient().auth.getUser();
 
-  const [rows, calendly, members] = await Promise.all([
+  const [rows, calendly, members, sentInvitations, myInvitations] = await Promise.all([
     db.prepare("SELECT key, value FROM vis_settings WHERE account_id = ?").all(accountId) as Promise<
       { key: string; value: string }[]
     >,
@@ -28,6 +29,15 @@ export default async function SettingsPage() {
          ORDER BY au.created_at`
       )
       .all(accountId) as Promise<{ user_id: string; role: string; email: string }[]>,
+    db
+      .prepare(
+        `SELECT id, email FROM vis_account_invitations
+         WHERE account_id = ? AND status = 'pending' ORDER BY id`
+      )
+      .all(accountId) as Promise<{ id: number; email: string }[]>,
+    // Invitations addressed to *this user*, from any account — see lib/team.ts
+    // for why this can't be a single join against vis_accounts.
+    listMyInvitations(),
   ]);
   const settings = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
@@ -50,7 +60,15 @@ export default async function SettingsPage() {
       </div>
       <SettingsTabs
         profile={<ProfileSection email={user?.email ?? ""} />}
-        team={<TeamSection members={members} currentUserId={user?.id ?? ""} />}
+        team={
+          <TeamSection
+            members={members}
+            sentInvitations={sentInvitations}
+            myInvitations={myInvitations}
+            currentUserId={user?.id ?? ""}
+            currentRole={currentRole}
+          />
+        }
         integrations={
           <IntegrationsSection
             calendlyConnected={calendly.connected}

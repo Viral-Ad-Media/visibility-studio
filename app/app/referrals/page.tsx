@@ -8,8 +8,13 @@ type ReferralRow = {
   id: number;
   status: "pending" | "rewarded";
   reward_usd: number;
-  created_at: string;
-  rewarded_at: string | null;
+  // vis_referrals.created_at/rewarded_at are real `timestamptz` columns, so
+  // pg's driver returns Date objects here — not the strings that vis_audits /
+  // vis_campaigns (TEXT columns) hand back. Typing these as string is what let
+  // a `.slice(0, 10)` through tsc that would throw at runtime; see the same
+  // trap noted for vis_accounts in app/admin/page.tsx.
+  created_at: Date;
+  rewarded_at: Date | null;
   referred_name: string;
 };
 
@@ -88,7 +93,7 @@ export default async function ReferralsPage() {
               {referrals.map((r) => (
                 <tr key={r.id} className="border-b border-ink-800">
                   <td className="px-4 py-2.5 text-slate-200">{r.referred_name}</td>
-                  <td className="px-2 py-2.5 text-slate-500 text-xs">{r.created_at.slice(0, 10)}</td>
+                  <td className="px-2 py-2.5 text-slate-500 text-xs">{new Date(r.created_at).toISOString().slice(0, 10)}</td>
                   <td className="px-2 py-2.5">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full border ${

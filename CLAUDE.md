@@ -279,6 +279,67 @@ layout).
   renders a distinctly-styled (rose, not indigo) "Admin" link only when true — every other account
   never sees it at all.
 
+## Team membership and invitations
+
+A `vis_account_users` row is the unit every RLS policy keys off, so creating one
+is the single most privileged write in this app — it is **never** done from an
+email address alone. Adding a teammate creates a `vis_account_invitations` row
+(inert on its own); only the invitee can turn it into a membership.
+
+- **Why**: `POST /api/team` used to insert `vis_account_users` directly after
+  looking the email up in `auth.users`. Since `auth.users` is shared with the
+  other apps in the `Vam-dashboard` project, anyone could silently attach any
+  user of any of those apps to their own account. That's a real cross-tenant
+  data path, not just an etiquette problem — see the `ORDER BY` note below.
+- **`vis_account_invitations`** (`account_id`, `email`, `invited_by_email`,
+  `status` `'pending' → 'accepted' | 'declined'`). Two policies: the usual
+  tenant-isolation `ALL` policy for the inviting account, plus an
+  invitee-read `SELECT` policy matching `lower(email) = lower(auth.jwt() ->>
+  'email')`. A partial unique index on `(account_id, lower(email)) where status
+  = 'pending'` makes re-inviting a no-op.
+- **`lib/db.ts`'s impersonation now sets an `email` claim** alongside `sub`,
+  because that invitee-read policy needs it. It comes from the verified Supabase
+  session, never client input; a missing email collapses to `''` and matches
+  nothing.
+- **`vis_respond_to_invitation(id, accept)`** is the only writer of
+  `vis_account_users` outside signup. `SECURITY DEFINER` (that table has no
+  INSERT policy at all, by design), `EXECUTE` revoked from `anon`/`public`. It
+  re-reads the caller's email from `auth.users` rather than trusting the JWT
+  claim — verified that a forged `email` claim cannot accept someone else's
+  invitation.
+- **Roles are now enforced**, not just stored: only an `owner` can invite,
+  revoke, or remove. An `owner` row can't be removed by anyone (including
+  another owner), which keeps every account with at least one owner by
+  construction and makes a team takeover impossible. Previously any `member`
+  could remove the `owner`.
+- **`POST /api/team` no longer checks whether the email has an account** — the
+  old existence check made the endpoint an email-enumeration oracle over every
+  user in the shared project. An invitation to an address that hasn't signed up
+  just sits pending.
+- **`getCurrentMembership()` / `getCurrentAccountId()` use `ORDER BY id LIMIT 1`,
+  and the `ORDER BY` is load-bearing.** Now that a user can legitimately belong
+  to more than one account, a bare `LIMIT 1` let Postgres return an arbitrary
+  membership — the same user could resolve to a different account between two
+  requests and write their audits, settings, or Calendly tokens into the wrong
+  tenant. `vis_start_trial()` had the identical bug and was fixed the same way.
+- **Don't join `vis_account_invitations` to `vis_accounts` on the impersonated
+  connection.** `vis_accounts`' read policy requires an existing membership, and
+  an invitee has none yet, so the join silently returns zero rows — it fails
+  closed and invisibly. `lib/team.ts`'s `listMyInvitations()` reads the
+  RLS-scoped invitation rows first, then resolves account names via `serviceDb`
+  for exactly those already-authorized ids. It also filters on the caller's email
+  explicitly: a multi-account user can read their *own* accounts' outgoing
+  invitations through the tenant policy, and those aren't addressed to them.
+- **Verified against production with self-rolling-back `DO` blocks** (fake
+  `auth.users` rows + `set_config('request.jwt.claims', ...)` impersonation,
+  ending in a `RAISE` so nothing persists) — confirmed: an invitation grants
+  nothing until accepted, the invitee sees only their own, a third party can
+  neither see nor accept one, a forged email claim is rejected, accepting
+  creates the membership, and account resolution stays stable throughout. Zero
+  residue confirmed afterwards.
+
+Migration: `vis_team_invitations_and_roles`.
+
 ## Content rules (non-negotiable)
 
 1. **Never fabricate** emails, phone numbers, ratings, review counts, rankings, or site facts.

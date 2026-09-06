@@ -202,23 +202,27 @@ export class Db {
 // process). Building the cached wrapper lazily — on first actual use —
 // means the standalone engine CLI (which only ever imports `serviceDb`)
 // never touches this at all and can't crash on it at module load.
-let cachedGetRequestUserId: (() => Promise<string>) | undefined;
-function getRequestUserId(): Promise<string> {
-  if (!cachedGetRequestUserId) {
-    cachedGetRequestUserId = cache(async (): Promise<string> => {
+let cachedGetRequestUser: (() => Promise<{ id: string; email: string }>) | undefined;
+function getRequestUser(): Promise<{ id: string; email: string }> {
+  if (!cachedGetRequestUser) {
+    cachedGetRequestUser = cache(async (): Promise<{ id: string; email: string }> => {
       const { data, error } = await supabaseServerClient().auth.getUser();
       if (error || !data.user) throw new UnauthenticatedDbAccessError();
-      return data.user.id;
+      return { id: data.user.id, email: data.user.email ?? "" };
     });
   }
-  return cachedGetRequestUserId();
+  return cachedGetRequestUser();
 }
 
+// The `email` claim is what vis_account_invitations' invitee-read policy
+// matches on (auth.jwt() ->> 'email'). It comes from the verified Supabase
+// session, never from client input; a missing email collapses to '' in the
+// policy and matches nothing.
 async function setImpersonation(client: { query: (text: string, values?: unknown[]) => Promise<any> }) {
-  const userId = await getRequestUserId();
+  const { id, email } = await getRequestUser();
   await client.query(
-    "SELECT set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
-    [userId]
+    "SELECT set_config('request.jwt.claims', json_build_object('sub', $1::text, 'email', $2::text, 'role', 'authenticated')::text, true)",
+    [id, email]
   );
   await client.query("SET LOCAL ROLE authenticated");
 }
@@ -289,10 +293,27 @@ export const serviceDb = new Db(serviceQuery, serviceBeginTx);
 // parent row to derive from, so routes that touch it need the current
 // user's account_id explicitly — this is RLS-scoped like any other query,
 // so it can only ever return the caller's own account.
+//
+// `ORDER BY id` is load-bearing, not cosmetic: a user can legitimately belong
+// to more than one account (they accepted an invitation), and a bare LIMIT 1
+// let Postgres return an arbitrary membership — so the same user could resolve
+// to a different account between two requests and write their audits, settings,
+// or Calendly tokens into the wrong tenant. Oldest membership wins, which is
+// stable and is the account they created.
+export async function getCurrentMembership(): Promise<{
+  accountId: number;
+  userId: string;
+  role: string;
+}> {
+  const row = await db
+    .prepare("SELECT account_id, user_id, role FROM vis_account_users ORDER BY id LIMIT 1")
+    .get();
+  if (!row) throw new Error("getCurrentMembership: no account membership for current user");
+  return { accountId: row.account_id, userId: row.user_id, role: row.role };
+}
+
 export async function getCurrentAccountId(): Promise<number> {
-  const row = await db.prepare("SELECT account_id FROM vis_account_users LIMIT 1").get();
-  if (!row) throw new Error("getCurrentAccountId: no account membership for current user");
-  return row.account_id;
+  return (await getCurrentMembership()).accountId;
 }
 
 export * from "./shared";
