@@ -8,3 +8,8 @@ export const CREDIT_PACKS = [
   { amountUsd: 100, cents: 10000, label: "$100" },
   { amountUsd: 250, cents: 25000, label: "$250" },
 ] as const;
+
+// Display-only mirrors of values that live in the vis_start_trial() Postgres
+// function (it's what actually grants them) — change both together.
+export const TRIAL_DAYS = 30;
+export const TRIAL_STARTER_CREDIT_USD = 20;
