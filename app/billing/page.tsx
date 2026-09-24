@@ -4,6 +4,7 @@ import { CheckCircle2, XCircle, Clock, ShieldCheck, Rocket } from "lucide-react"
 import { supabaseServerClient } from "@/lib/supabase-server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
+import { TRIAL_DAYS, TRIAL_STARTER_CREDIT_USD } from "@/lib/pricing";
 import { hasAppAccess, type Account } from "@/lib/shared";
 import { BuyAccessButton, BuyCreditsGrid, StartTrialButton } from "@/components/BillingActions";
 import { logout } from "@/app/(auth)/actions";
@@ -79,7 +80,7 @@ export default async function BillingPage({
                       </div>
                       <CardTitle className="font-mono text-sm text-muted-foreground">Trial</CardTitle>
                       <Badge variant="secondary" className="ml-auto rounded-full">
-                        30 days
+                        {TRIAL_DAYS} days
                       </Badge>
                     </div>
                     <div className="mt-3 flex items-baseline gap-2">
@@ -87,7 +88,7 @@ export default async function BillingPage({
                     </div>
                     <CardDescription className="pt-2">
                       Full access to automated audits and campaigns, no payment required. Comes
-                      with $20 of starter credit. One trial per account.
+                      with ${TRIAL_STARTER_CREDIT_USD} of starter credit. One trial per account.
                     </CardDescription>
                   </CardHeader>
                   <CardFooter>

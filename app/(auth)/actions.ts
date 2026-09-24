@@ -8,7 +8,13 @@ import { logAuditEvent } from "@/lib/auditLog";
 export async function login(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/app");
+  // `next` round-trips through a query string anyone can craft, so only
+  // follow same-site paths — "//evil.com" or "https://evil.com" would
+  // otherwise turn the login form into an open redirect.
+  const rawNext = String(formData.get("next") ?? "/app");
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.startsWith("/\\")
+    ? rawNext
+    : "/app";
 
   const { error } = await supabaseServerClient().auth.signInWithPassword({ email, password });
   if (error) {
