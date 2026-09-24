@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start -p 3300",
+    "start": "next start -p ${PORT:-3300}",
     "engine": "tsx scripts/engine.ts"
   },
   "dependencies": {
