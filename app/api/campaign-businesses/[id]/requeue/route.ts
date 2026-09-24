@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
+import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
 
 const TYPES = ["build_redesign", "create_booking_link"] as const;
 
@@ -17,15 +18,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     );
   }
 
-  const row = (await db
-    .prepare(
-      `SELECT cb.id, cb.business_id, cb.campaign_id, c.audit_id
-       FROM vis_campaign_businesses cb JOIN vis_campaigns c ON c.id = cb.campaign_id
-       WHERE cb.id = ?`
-    )
-    .get(id)) as
-    | { id: number; business_id: number; campaign_id: number; audit_id: number }
-    | undefined;
+  const row = await db.prepare("SELECT id FROM vis_campaign_businesses WHERE id = ?").get(id);
   if (!row) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const open = await db
@@ -37,21 +30,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     .get(type, id);
   if (open) return NextResponse.json({ ok: true, already_queued: true });
 
-  const payload = JSON.stringify({
-    audit_id: row.audit_id,
-    campaign_id: row.campaign_id,
-    campaign_business_id: row.id,
-    business_id: row.business_id,
-  });
-  await db.prepare("INSERT INTO vis_jobs (type, payload) VALUES (?, ?)").run(type, payload);
-
-  const statusCol = type === "build_redesign" ? "redesign_status" : "booking_status";
-  const errorCol = type === "build_redesign" ? "redesign_error" : "booking_error";
-  await db
-    .prepare(
-      `UPDATE vis_campaign_businesses SET ${statusCol}='pending', ${errorCol}=NULL, updated_at=now()::text WHERE id=?`
-    )
-    .run(id);
+  // The RPC also resets this row's redesign_/booking_ status+error to pending
+  // (those columns are engine-owned and not client-writable).
+  try {
+    await enqueueJob(db, type as "build_redesign" | "create_booking_link", id);
+  } catch (err) {
+    if (isInsufficientCredits(err)) {
+      return NextResponse.json(
+        { error: "Your credit balance is $0 — add credits in Billing before retrying." },
+        { status: 402 }
+      );
+    }
+    throw err;
+  }
 
   return NextResponse.json({ ok: true });
 }

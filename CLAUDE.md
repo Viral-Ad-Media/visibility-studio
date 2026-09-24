@@ -137,6 +137,46 @@ Business fields, campaign summaries, and booking-link meta go through `--meta` J
 dedupes on normalized website, then name+location. Read-only inspection queries can go through the
 Supabase MCP's `execute_sql` tool (project: Vam-dashboard) — no need for `DATABASE_URL` just to look.
 
+## RLS lockdown (what clients may write directly)
+
+The Supabase anon key is public, so any signed-in user can hit PostgREST directly and skip every
+check in `app/api/*` — RLS is the real boundary, not the routes. Migration `vis_rls_lockdown`
+narrowed the tables where a plain tenant-member `FOR ALL` policy was too broad:
+
+- **Jobs are queued only via `vis_enqueue_job(p_type, p_target_id)`** (`lib/jobs.ts`'s
+  `enqueueJob()`) — `SECURITY DEFINER`, `authenticated`-only. It checks the target (audit id for
+  `run_audit`, campaign_business id for `build_redesign`/`create_booking_link`) belongs to the
+  caller's account, builds the payload itself from that row (never trusts a client payload),
+  refuses at a `<= 0` credit balance (raises `insufficient_credits` → routes return `402`), and for
+  campaign jobs resets that row's `redesign_`/`booking_` status+error to `pending`. `audit_business`
+  jobs are never client-enqueueable — only the worker fans them out (via `serviceDb`).
+- `vis_campaign_businesses`: insert requires the business to belong to the same account as the
+  campaign; `redesign_*`/`booking_*` are engine-owned.
+- `vis_audit_log`: members read only; written via `serviceDb` (`lib/auditLog.ts`).
+- `vis_calendly_connections`: members can read connection status (name/URIs) and delete, but have
+  no column privilege on `access_token`/`refresh_token` — only `serviceDb` code reads tokens.
+- `vis_create_account_with_owner()`/`vis_start_trial()`: `authenticated` only (were executable by
+  `anon`); a user can own at most one account.
+- Defense in depth: `lib/engine/worker.ts`'s `assertCampaignBusinessOwnedBy()` re-checks that a
+  campaign job's row belongs to the job's account before the worker (RLS-bypassing) touches it.
+
+**Phase 2 is still pending** — deliberately not applied with the rest, because the code deployed
+at the time still INSERTed into `vis_jobs` and UPDATEd campaign-business status columns directly.
+Apply it (migration `vis_rls_lockdown_phase2`) only once the `enqueueJob()` code is live in
+production:
+
+```sql
+drop policy if exists vis_tenant_isolation on public.vis_jobs;
+create policy vis_jobs_member_read on public.vis_jobs for select
+  using (exists (select 1 from vis_account_users au where au.account_id = vis_jobs.account_id and au.user_id = auth.uid()));
+create policy vis_jobs_member_delete on public.vis_jobs for delete
+  using (exists (select 1 from vis_account_users au where au.account_id = vis_jobs.account_id and au.user_id = auth.uid()));
+revoke insert, update on public.vis_jobs from anon, authenticated;
+revoke insert, update on public.vis_campaign_businesses from anon, authenticated;
+grant insert (campaign_id, business_id) on public.vis_campaign_businesses to authenticated;
+grant update (stage, updated_at) on public.vis_campaign_businesses to authenticated;
+```
+
 ## Settings
 
 `GET`/`PUT /api/settings` (or the `/settings` page) reads/writes the `settings` key/value table.

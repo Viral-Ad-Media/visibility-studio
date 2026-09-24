@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
+import { enqueueJob } from "@/lib/jobs";
 
 // Create a campaign from a set of businesses within one audit. Queues one
 // build_redesign and one create_booking_link job per business.
@@ -55,19 +56,12 @@ export async function POST(req: Request) {
     const insertCb = tx.prepare(
       "INSERT INTO vis_campaign_businesses (campaign_id, business_id) VALUES (?, ?)"
     );
-    const insertJob = tx.prepare("INSERT INTO vis_jobs (type, payload) VALUES (?, ?)");
 
     for (const businessId of businessIds) {
       const cb = await insertCb.run(id, businessId);
       const campaignBusinessId = cb.lastInsertRowid as number;
-      const payload = JSON.stringify({
-        audit_id: auditId,
-        campaign_id: id,
-        campaign_business_id: campaignBusinessId,
-        business_id: businessId,
-      });
-      await insertJob.run("build_redesign", payload);
-      await insertJob.run("create_booking_link", payload);
+      await enqueueJob(tx, "build_redesign", campaignBusinessId);
+      await enqueueJob(tx, "create_booking_link", campaignBusinessId);
     }
     return id;
   });

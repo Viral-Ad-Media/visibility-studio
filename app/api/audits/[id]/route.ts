@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import db, { Audit } from "@/lib/db";
+import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
 
 // Requeue an audit (e.g. after an error, or to top up businesses). The
 // insert below fires a Postgres trigger (pg_net) that POSTs to
@@ -18,9 +19,17 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     .get(id);
   if (open) return NextResponse.json({ ok: true, already_queued: true });
 
-  await db.prepare("INSERT INTO vis_jobs (type, payload) VALUES ('run_audit', ?)").run(
-    JSON.stringify({ audit_id: id })
-  );
+  try {
+    await enqueueJob(db, "run_audit", id);
+  } catch (err) {
+    if (isInsufficientCredits(err)) {
+      return NextResponse.json(
+        { error: "Your credit balance is $0 — add credits in Billing before re-running this audit." },
+        { status: 402 }
+      );
+    }
+    throw err;
+  }
   await db
     .prepare("UPDATE vis_audits SET status='queued', updated_at=now()::text WHERE id = ?")
     .run(id);
