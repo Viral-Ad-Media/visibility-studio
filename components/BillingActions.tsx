@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CREDIT_PACKS } from "@/lib/pricing";
+import { ACCESS_FEE_USD, CREDIT_PACKS, formatUsd } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -30,7 +30,7 @@ export function BuyAccessButton() {
         await startCheckout({ type: "access" });
       }}
     >
-      {busy ? "Redirecting…" : "Unlock — $97 one-time"}
+      {busy ? "Redirecting…" : `Unlock — ${formatUsd(ACCESS_FEE_USD)} one-time`}
     </Button>
   );
 }
