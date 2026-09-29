@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, SearchCheck, Radar, Megaphone, Settings, LogOut, History, Wallet, Clock, Users, Send, Gift, ShieldAlert } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
 import ProductTour from "./ProductTour";
+import ThemeToggle from "./ThemeToggle";
 
 const links = [
   { href: "/app", label: "Audits", icon: LayoutDashboard, tourId: "tour-nav-audits" },
@@ -90,6 +91,7 @@ export default function Nav({
             Credit balance: <span className="text-slate-200 font-medium">${creditBalance.toFixed(2)}</span>
           </span>
         </Link>
+        <ThemeToggle variant="row" />
         <form action={logout}>
           <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-ink-800 hover:text-slate-200">
             <LogOut className="w-4 h-4" />

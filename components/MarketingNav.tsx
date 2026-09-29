@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Radar } from "lucide-react";
+import ThemeToggle from "./ThemeToggle";
 
 const links = [
   { href: "/about", label: "About" },
@@ -34,12 +35,15 @@ export default function MarketingNav() {
             </Link>
           ))}
         </nav>
-        <Link
-          href="/app"
-          className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Link
+            href="/app"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
-          Open the app
-        </Link>
+            Open the app
+          </Link>
+        </div>
       </div>
     </header>
   );
