@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { runWorkerLoop } from "@/lib/engine/worker";
 
@@ -17,7 +18,7 @@ export const maxDuration = 300;
 // automated engine".
 export async function POST(req: Request) {
   const secret = req.headers.get("x-engine-secret");
-  if (!secret || secret !== process.env.ENGINE_WEBHOOK_SECRET) {
+  if (!secret || !secretMatches(secret, process.env.ENGINE_WEBHOOK_SECRET)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -28,4 +29,13 @@ export async function POST(req: Request) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
+}
+
+// Constant-time compare, so the secret can't be recovered byte-by-byte from
+// response timing.
+function secretMatches(given: string, expected: string | undefined): boolean {
+  if (!expected) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }

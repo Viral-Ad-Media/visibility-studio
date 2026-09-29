@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
+import { enqueueJob } from "@/lib/jobs";
 
 // The insert below fires a Postgres trigger (pg_net) that POSTs to
 // /api/engine/run instantly — no application-side call needed. See CLAUDE.md
@@ -39,9 +40,7 @@ export async function POST(req: Request) {
     )
     .run(query, category, location, target, body.notes?.trim() || null, accountId);
 
-  await db.prepare("INSERT INTO vis_jobs (type, payload) VALUES ('run_audit', ?)").run(
-    JSON.stringify({ audit_id: audit.lastInsertRowid })
-  );
+  await enqueueJob(db, "run_audit", audit.lastInsertRowid as number);
 
   return NextResponse.json({ id: audit.lastInsertRowid });
 }

@@ -7,6 +7,20 @@ import BusinessTable from "@/components/BusinessTable";
 import RequeueButton from "@/components/RequeueButton";
 import AuditActions from "@/components/AuditActions";
 
+// summary_md interpolates business names the engine scraped from third-party
+// sites, and marked passes raw HTML straight through — escape it first so a
+// business name can never inject markup or a [link](javascript:...). The
+// templated summary (see buildSummary in lib/engine/worker.ts) uses no HTML,
+// links, or images, only bold/headings/lists.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\[/g, "&#91;")
+    .replace(/\]/g, "&#93;");
+}
+
 export const dynamic = "force-dynamic";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -111,7 +125,7 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
           </h2>
           <div
             className="markdown text-sm"
-            dangerouslySetInnerHTML={{ __html: marked.parse(audit.summary_md) as string }}
+            dangerouslySetInnerHTML={{ __html: marked.parse(escapeHtml(audit.summary_md)) as string }}
           />
         </div>
       )}

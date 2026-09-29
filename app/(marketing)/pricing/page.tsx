@@ -60,6 +60,7 @@ const STEPS = [
     features: [
       "Pay once, keep access",
       "Your credit balance carries over",
+      "Invite your team at no extra cost",
       "Every feature, including future ones",
     ],
   },
