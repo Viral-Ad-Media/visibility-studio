@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
+import { enqueueCampaignJob, enqueueErrorResponse } from "@/lib/enqueue";
 
 // Create a campaign from a set of businesses within one audit. Queues one
 // build_redesign and one create_booking_link job per business.
@@ -46,31 +47,34 @@ export async function POST(req: Request) {
     );
   }
 
-  const campaignId = await db.transaction(async (tx) => {
-    const campaign = await tx
-      .prepare("INSERT INTO vis_campaigns (audit_id, name) VALUES (?, ?)")
-      .run(auditId, name);
-    const id = campaign.lastInsertRowid as number;
+  const CREDIT_MSG =
+    "Your credit balance is $0 — add credits in Billing before creating a new campaign.";
+  try {
+    // One transaction: if either enqueue RPC refuses (it re-checks balance
+    // and ownership inside Postgres), the campaign and its rows roll back.
+    const campaignId = await db.transaction(async (tx) => {
+      const campaign = await tx
+        .prepare("INSERT INTO vis_campaigns (audit_id, name) VALUES (?, ?)")
+        .run(auditId, name);
+      const id = campaign.lastInsertRowid as number;
 
-    const insertCb = tx.prepare(
-      "INSERT INTO vis_campaign_businesses (campaign_id, business_id) VALUES (?, ?)"
-    );
-    const insertJob = tx.prepare("INSERT INTO vis_jobs (type, payload) VALUES (?, ?)");
+      const insertCb = tx.prepare(
+        "INSERT INTO vis_campaign_businesses (campaign_id, business_id) VALUES (?, ?)"
+      );
 
-    for (const businessId of businessIds) {
-      const cb = await insertCb.run(id, businessId);
-      const campaignBusinessId = cb.lastInsertRowid as number;
-      const payload = JSON.stringify({
-        audit_id: auditId,
-        campaign_id: id,
-        campaign_business_id: campaignBusinessId,
-        business_id: businessId,
-      });
-      await insertJob.run("build_redesign", payload);
-      await insertJob.run("create_booking_link", payload);
-    }
-    return id;
-  });
+      for (const businessId of businessIds) {
+        const cb = await insertCb.run(id, businessId);
+        const campaignBusinessId = cb.lastInsertRowid as number;
+        await enqueueCampaignJob(tx, campaignBusinessId, "build_redesign");
+        await enqueueCampaignJob(tx, campaignBusinessId, "create_booking_link");
+      }
+      return id;
+    });
 
-  return NextResponse.json({ id: campaignId });
+    return NextResponse.json({ id: campaignId });
+  } catch (err) {
+    const res = enqueueErrorResponse(err, CREDIT_MSG);
+    if (res) return res;
+    throw err;
+  }
 }

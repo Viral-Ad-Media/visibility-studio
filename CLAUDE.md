@@ -137,6 +137,32 @@ Business fields, campaign summaries, and booking-link meta go through `--meta` J
 dedupes on normalized website, then name+location. Read-only inspection queries can go through the
 Supabase MCP's `execute_sql` tool (project: Vam-dashboard) — no need for `DATABASE_URL` just to look.
 
+**RLS assumes the client is hostile, not just `app/api/*`** (migration `vis_rls_hardening`). The
+public anon key lets any signed-in user hit PostgREST directly, skipping every route check, so
+the database enforces the rules itself:
+
+- **`vis_jobs`** and **`vis_audit_log`** are SELECT-only for `authenticated`. Nothing on the
+  impersonated `db` connection may INSERT/UPDATE/DELETE them. Users queue jobs only through
+  `vis_enqueue_audit_job(audit_id)` / `vis_enqueue_campaign_job(campaign_business_id, type)`
+  (`SECURITY DEFINER`, wrapped by `lib/enqueue.ts`). Those RPCs check membership, dedupe open
+  jobs, re-check the credit balance, and raise `VS404`/`VS402`/`VS400`, which
+  `enqueueErrorResponse()` maps to HTTP. Job deletes (audit/campaign DELETE routes) do an
+  impersonated ownership read first, then run on `serviceDb` scoped by `account_id`.
+- **`vis_campaign_businesses`**: clients can INSERT only `(campaign_id, business_id, stage)` and
+  UPDATE only `(stage, updated_at)` (column grants). The engine-owned `redesign_*`/`booking_*`
+  columns are written only by the engine (`serviceDb`) or the enqueue RPC. A trigger
+  (`vis_check_campaign_business_tenant`) rejects a `business_id` from another tenant.
+- **`vis_calendly_connections`**: clients can SELECT only the non-secret columns. Tokens are read
+  and written only in `lib/engine/calendly.ts` via `serviceDb`. `SELECT *` on the impersonated
+  connection fails with a permission error.
+- **`vis_create_account_with_owner`** / **`vis_start_trial`** are not executable by `anon`.
+  Account creation needs `auth.uid()` and is capped at one *owned* account per user (`VS409`,
+  swallowed by `createAccount()`). Invitation memberships don't count toward the cap.
+
+When adding a table or RPC, grant clients the narrowest thing that works rather than copying the
+old `FOR ALL` tenant policy. Then verify with a rolled-back impersonation transaction that the
+blocked paths return `42501`.
+
 ## Settings
 
 `GET`/`PUT /api/settings` (or the `/settings` page) reads/writes the `settings` key/value table.

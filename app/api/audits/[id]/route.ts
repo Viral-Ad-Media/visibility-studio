@@ -1,26 +1,27 @@
 import { NextResponse } from "next/server";
-import db, { Audit } from "@/lib/db";
+import db, { Audit, serviceDb } from "@/lib/db";
+import { enqueueAuditJob, enqueueErrorResponse } from "@/lib/enqueue";
 
-// Requeue an audit (e.g. after an error, or to top up businesses). The
-// insert below fires a Postgres trigger (pg_net) that POSTs to
+// Requeue an audit (e.g. after an error, or to top up businesses). The job
+// insert (inside the vis_enqueue_audit_job RPC) fires a Postgres trigger (pg_net) that POSTs to
 // /api/engine/run instantly — no application-side call needed.
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
-  const audit = await db.prepare("SELECT id FROM vis_audits WHERE id = ?").get(id);
-  if (!audit) return NextResponse.json({ error: "not found" }, { status: 404 });
+  // The RPC does the ownership, already-queued and credit checks in Postgres
+  // (clients can't insert into vis_jobs directly — see lib/enqueue.ts).
+  let result;
+  try {
+    result = await enqueueAuditJob(db, id);
+  } catch (err) {
+    const res = enqueueErrorResponse(
+      err,
+      "Your credit balance is $0 — add credits in Billing before re-running this audit."
+    );
+    if (res) return res;
+    throw err;
+  }
+  if (result.already_queued) return NextResponse.json({ ok: true, already_queued: true });
 
-  const open = await db
-    .prepare(
-      `SELECT id FROM vis_jobs
-       WHERE type='run_audit' AND status IN ('pending','running')
-         AND (payload::json->>'audit_id')::bigint = ?`
-    )
-    .get(id);
-  if (open) return NextResponse.json({ ok: true, already_queued: true });
-
-  await db.prepare("INSERT INTO vis_jobs (type, payload) VALUES ('run_audit', ?)").run(
-    JSON.stringify({ audit_id: id })
-  );
   await db
     .prepare("UPDATE vis_audits SET status='queued', updated_at=now()::text WHERE id = ?")
     .run(id);
@@ -64,21 +65,32 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 // Delete an audit along with its businesses, campaigns, and any of its jobs.
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
-  const audit = await db.prepare("SELECT id FROM vis_audits WHERE id = ?").get(id);
+  // Impersonated read = RLS-backed ownership check. vis_jobs is SELECT-only
+  // for clients, so the delete runs on serviceDb, scoped to that account_id.
+  const audit = await db.prepare("SELECT id, account_id FROM vis_audits WHERE id = ?").get(id);
   if (!audit) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const accountId = audit.account_id as number;
 
-  await db.transaction(async (tx) => {
-    await tx
-      .prepare("DELETE FROM vis_jobs WHERE (payload::json->>'audit_id')::bigint = ?")
-      .run(id);
+  await serviceDb.transaction(async (tx) => {
     await tx
       .prepare(
-        "DELETE FROM vis_campaign_businesses WHERE campaign_id IN (SELECT id FROM vis_campaigns WHERE audit_id = ?)"
+        "DELETE FROM vis_jobs WHERE account_id = ? AND (payload::json->>'audit_id')::bigint = ?"
       )
-      .run(id);
-    await tx.prepare("DELETE FROM vis_campaigns WHERE audit_id = ?").run(id);
-    await tx.prepare("DELETE FROM vis_businesses WHERE audit_id = ?").run(id);
-    await tx.prepare("DELETE FROM vis_audits WHERE id = ?").run(id);
+      .run(accountId, id);
+    await tx
+      .prepare(
+        "DELETE FROM vis_campaign_businesses WHERE account_id = ? AND campaign_id IN (SELECT id FROM vis_campaigns WHERE audit_id = ?)"
+      )
+      .run(accountId, id);
+    await tx
+      .prepare("DELETE FROM vis_campaigns WHERE account_id = ? AND audit_id = ?")
+      .run(accountId, id);
+    await tx
+      .prepare("DELETE FROM vis_businesses WHERE account_id = ? AND audit_id = ?")
+      .run(accountId, id);
+    await tx
+      .prepare("DELETE FROM vis_audits WHERE account_id = ? AND id = ?")
+      .run(accountId, id);
   });
   return NextResponse.json({ ok: true });
 }

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
+import { enqueueAuditJob, enqueueErrorResponse } from "@/lib/enqueue";
 
-// The insert below fires a Postgres trigger (pg_net) that POSTs to
-// /api/engine/run instantly — no application-side call needed. See CLAUDE.md
-// "The automated engine".
+const CREDIT_MSG = "Your credit balance is $0 — add credits in Billing before running a new audit.";
+
+// The job insert (inside the vis_enqueue_audit_job RPC) fires a Postgres
+// trigger (pg_net) that POSTs to /api/engine/run instantly — no
+// application-side call needed. See CLAUDE.md "The automated engine".
 export async function POST(req: Request) {
   const body = await req.json();
   const category = String(body.category ?? "").trim();
@@ -27,21 +30,28 @@ export async function POST(req: Request) {
   const balance = await getCreditBalance(accountId);
   if (balance <= 0) {
     return NextResponse.json(
-      { error: "Your credit balance is $0 — add credits in Billing before running a new audit." },
+      { error: CREDIT_MSG },
       { status: 402 }
     );
   }
 
-  const audit = await db
-    .prepare(
-      `INSERT INTO vis_audits (query, category, location, target_count, notes, account_id)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(query, category, location, target, body.notes?.trim() || null, accountId);
-
-  await db.prepare("INSERT INTO vis_jobs (type, payload) VALUES ('run_audit', ?)").run(
-    JSON.stringify({ audit_id: audit.lastInsertRowid })
-  );
-
-  return NextResponse.json({ id: audit.lastInsertRowid });
+  try {
+    // One transaction: if the enqueue RPC refuses (it re-checks balance
+    // inside Postgres), the audit row rolls back with it.
+    const auditId = await db.transaction(async (tx) => {
+      const audit = await tx
+        .prepare(
+          `INSERT INTO vis_audits (query, category, location, target_count, notes, account_id)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+        .run(query, category, location, target, body.notes?.trim() || null, accountId);
+      await enqueueAuditJob(tx, audit.lastInsertRowid as number);
+      return audit.lastInsertRowid;
+    });
+    return NextResponse.json({ id: auditId });
+  } catch (err) {
+    const res = enqueueErrorResponse(err, CREDIT_MSG);
+    if (res) return res;
+    throw err;
+  }
 }
