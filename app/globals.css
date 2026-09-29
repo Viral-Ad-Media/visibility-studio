@@ -2,13 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-/* shadcn/ui theme tokens, mapped directly onto the app's existing ink/slate
-   dark palette (tailwind.config.ts's `ink` scale + default slate/indigo/red)
-   so 21st.dev / shadcn components drop in looking native instead of
-   bringing their own light-mode-first defaults. This app is dark-only —
-   there is no light `:root` variant, deliberately. */
+/* Theme tokens. Dark is the default (the original, dark-only look), light is
+   opt-in via the toggle (components/ThemeToggle.tsx sets `light` or `dark` on
+   <html>). Two groups of variables, both swapped per theme:
+
+   1. The app palette — ink (surfaces), slate (text), and the pale accent
+      shades used as text — as space-separated RGB channels, consumed by
+      tailwind.config.ts as rgb(var(--x) / <alpha-value>) so opacity
+      modifiers like bg-ink-950/80 keep working. In light mode the scales
+      invert: ink-950 is the lightest surface, slate-100 the darkest text.
+   2. shadcn/ui semantic tokens (HSL), mapped onto that same palette so
+      21st.dev / shadcn components look native in either theme. */
 @layer base {
   :root {
+    color-scheme: dark;
+
+    --ink-950: 8 9 15;
+    --ink-900: 14 15 26;
+    --ink-800: 21 23 38;
+    --ink-700: 33 36 55;
+    --ink-600: 51 55 79;
+
+    /* Tailwind's default slate */
+    --slate-50: 248 250 252;
+    --slate-100: 241 245 249;
+    --slate-200: 226 232 240;
+    --slate-300: 203 213 225;
+    --slate-400: 148 163 184;
+    --slate-500: 100 116 139;
+    --slate-600: 71 85 105;
+    --slate-700: 51 65 85;
+    --slate-800: 30 41 59;
+    --slate-900: 15 23 42;
+    --slate-950: 2 6 23;
+
+    /* Tailwind defaults */
+    --indigo-300: 165 180 252;
+    --indigo-400: 129 140 248;
+    --emerald-300: 110 231 183;
+    --emerald-400: 52 211 153;
+    --amber-300: 252 211 77;
+    --amber-400: 251 191 36;
+    --red-300: 252 165 165;
+    --red-400: 248 113 113;
+    --rose-300: 253 164 175;
+    --rose-400: 251 113 133;
+    --cyan-400: 34 211 238;
+
     --background: 231 30% 5%; /* ink-950 */
     --foreground: 214 32% 91%; /* slate-200 */
     --card: 235 30% 8%; /* ink-900 */
@@ -29,6 +69,63 @@
     --input: 232 25% 17%; /* ink-700 */
     --ring: 243 75% 59%; /* indigo-600 */
     --radius: 0.75rem;
+  }
+
+  :root.light {
+    color-scheme: light;
+
+    /* surfaces: page (950) → card (900) → raised/hover (800) → border (700/600) */
+    --ink-950: 248 250 252; /* slate-50 */
+    --ink-900: 255 255 255;
+    --ink-800: 241 245 249; /* slate-100 */
+    --ink-700: 226 232 240; /* slate-200 */
+    --ink-600: 203 213 225; /* slate-300 */
+
+    /* slate inverted around 500, so "bright text" becomes "dark text" */
+    --slate-50: 2 6 23;
+    --slate-100: 15 23 42;
+    --slate-200: 30 41 59;
+    --slate-300: 51 65 85;
+    --slate-400: 71 85 105;
+    --slate-500: 100 116 139;
+    --slate-600: 148 163 184;
+    --slate-700: 203 213 225;
+    --slate-800: 226 232 240;
+    --slate-900: 241 245 249;
+    --slate-950: 248 250 252;
+
+    /* pale accents → the 600/700 shades, readable on white */
+    --indigo-300: 67 56 202; /* indigo-700 */
+    --indigo-400: 79 70 229; /* indigo-600 */
+    --emerald-300: 4 120 87; /* emerald-700 */
+    --emerald-400: 4 120 87; /* emerald-700 */
+    --amber-300: 180 83 9; /* amber-700 */
+    --amber-400: 180 83 9; /* amber-700 */
+    --red-300: 185 28 28; /* red-700 */
+    --red-400: 220 38 38; /* red-600 */
+    --rose-300: 190 18 60; /* rose-700 */
+    --rose-400: 225 29 72; /* rose-600 */
+    --cyan-400: 14 116 144; /* cyan-700 */
+
+    --background: 210 40% 98%; /* slate-50 */
+    --foreground: 222 47% 11%; /* slate-900 */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 243 75% 59%; /* indigo-600 */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%; /* slate-100 */
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 19% 35%; /* slate-600 */
+    --accent: 214 32% 91%; /* slate-200 */
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 72% 51%; /* red-600 */
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%; /* slate-200 */
+    --input: 214 32% 91%;
+    --ring: 243 75% 59%;
   }
 }
 
