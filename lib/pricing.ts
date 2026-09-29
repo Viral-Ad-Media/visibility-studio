@@ -19,6 +19,11 @@ export const CREDIT_PACKS = [
 export const TRIAL_DAYS = 30;
 export const TRIAL_STARTER_CREDIT_USD = 20;
 
+// Refund window stated in the Terms (§5). Refunds are processed by hand in the
+// Stripe dashboard — nothing in the app issues them or revokes access/credits
+// automatically, so honoring this is an operator task.
+export const REFUND_WINDOW_DAYS = 30;
+
 // Rough, marketing-only estimates of what a job deducts from credits. Real
 // deductions are each job's own measured estimated_cost_usd (lib/engine/worker.ts),
 // so these are never used for billing. Basis: an audit_business job is capped at
