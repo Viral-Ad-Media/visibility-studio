@@ -1,3 +1,14 @@
+import {
+  ACCESS_FEE_USD,
+  CREDIT_PACKS,
+  TRIAL_DAYS,
+  TRIAL_STARTER_CREDIT_USD,
+  EST_COST_PER_AUDITED_BUSINESS_LABEL,
+  formatUsd,
+} from "@/lib/pricing";
+
+const PACK_LABELS = CREDIT_PACKS.map((p) => p.label);
+
 const FAQS = [
   {
     q: "How does an audit actually work?",
@@ -18,6 +29,18 @@ const FAQS = [
   {
     q: "What does a redesign concept actually look like?",
     a: "A single self-contained, styled homepage concept built from that business's own audit findings — original copy, no lifted photos or text, no fabricated testimonials. It's clearly labeled as a concept, never presented as the business's real site.",
+  },
+  {
+    q: "How much does it cost?",
+    a: `Start with a ${TRIAL_DAYS}-day free trial that includes ${formatUsd(TRIAL_STARTER_CREDIT_USD)} of starter credit, with no payment needed. To keep access after that, pay a one-time ${formatUsd(ACCESS_FEE_USD)} access fee. It isn't a subscription. On top of that, audits and campaigns are paid for with prepaid credits, sold in ${PACK_LABELS.slice(0, -1).join(", ")} or ${PACK_LABELS[PACK_LABELS.length - 1]} packs.`,
+  },
+  {
+    q: "How are credits used, and how far does a pack go?",
+    a: `Each job deducts what it actually cost to run: the AI research plus the web searches it made. There's no flat fee per business and no monthly quota. As a rough estimate, not a quote, auditing one business usually costs about ${EST_COST_PER_AUDITED_BUSINESS_LABEL}. It depends on how much there is to research. You can see the real cost of every audit and campaign in the app.`,
+  },
+  {
+    q: "What happens when my credits run out?",
+    a: "New audits and campaigns are paused until you buy more credits. Work that's already running still finishes, so the last job can take your balance slightly below $0. Credits don't expire.",
   },
   {
     q: "Can I get the data out?",

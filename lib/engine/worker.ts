@@ -161,12 +161,38 @@ async function processAuditBusiness(job: JobRow) {
   await maybeFinalizeAudit(auditId);
 }
 
+// vis_jobs rows are insertable by any authenticated tenant member (RLS
+// allows it, and the anon key is public, so this includes direct PostgREST
+// calls that never go through app/api/*). The insert trigger derives
+// job.account_id from payload.audit_id only — nothing checks that
+// payload.campaign_business_id belongs to that same account. The worker runs
+// on serviceDb (no RLS), so without this check a tenant could point a job at
+// another tenant's campaign business and have the engine read that tenant's
+// business data into, or write a booking link onto, a row it doesn't own.
+async function assertCampaignBusinessOwnedBy(campaignBusinessId: number, accountId: number) {
+  const row = (await db
+    .prepare(
+      `SELECT cb.account_id AS cb_account, b.account_id AS b_account
+       FROM vis_campaign_businesses cb JOIN vis_businesses b ON b.id = cb.business_id
+       WHERE cb.id = ?`
+    )
+    .get(campaignBusinessId)) as { cb_account: number; b_account: number } | undefined;
+  if (
+    !row ||
+    Number(row.cb_account) !== Number(accountId) ||
+    Number(row.b_account) !== Number(accountId)
+  ) {
+    throw new Error(`campaign business ${campaignBusinessId} does not belong to account ${accountId}`);
+  }
+}
+
 async function processBuildRedesign(job: JobRow) {
   const payload = JSON.parse(job.payload || "{}");
   const campaignBusinessId = Number(payload.campaign_business_id);
   if (!campaignBusinessId) {
     throw new Error(`build_redesign job ${job.id} has no campaign_business_id in its payload`);
   }
+  await assertCampaignBusinessOwnedBy(campaignBusinessId, job.account_id);
 
   await db
     .prepare(
@@ -200,6 +226,7 @@ async function processCreateBookingLink(job: JobRow) {
   if (!campaignBusinessId) {
     throw new Error(`create_booking_link job ${job.id} has no campaign_business_id in its payload`);
   }
+  await assertCampaignBusinessOwnedBy(campaignBusinessId, job.account_id);
 
   await db
     .prepare(
@@ -266,16 +293,16 @@ async function failJob(job: JobRow, message: string) {
     if (job.type === "build_redesign" && campaignBusinessId) {
       await db
         .prepare(
-          "UPDATE vis_campaign_businesses SET redesign_status='error', redesign_error=?, updated_at=now()::text WHERE id = ?"
+          "UPDATE vis_campaign_businesses SET redesign_status='error', redesign_error=?, updated_at=now()::text WHERE id = ? AND account_id = ?"
         )
-        .run(message, campaignBusinessId);
+        .run(message, campaignBusinessId, job.account_id);
     }
     if (job.type === "create_booking_link" && campaignBusinessId) {
       await db
         .prepare(
-          "UPDATE vis_campaign_businesses SET booking_status='error', booking_error=?, updated_at=now()::text WHERE id = ?"
+          "UPDATE vis_campaign_businesses SET booking_status='error', booking_error=?, updated_at=now()::text WHERE id = ? AND account_id = ?"
         )
-        .run(message, campaignBusinessId);
+        .run(message, campaignBusinessId, job.account_id);
     }
   } else {
     // Leave pending (not running) so the natural claim_job() path retries it.

@@ -137,31 +137,50 @@ Business fields, campaign summaries, and booking-link meta go through `--meta` J
 dedupes on normalized website, then name+location. Read-only inspection queries can go through the
 Supabase MCP's `execute_sql` tool (project: Vam-dashboard) — no need for `DATABASE_URL` just to look.
 
-**RLS assumes the client is hostile, not just `app/api/*`** (migration `vis_rls_hardening`). The
-public anon key lets any signed-in user hit PostgREST directly, skipping every route check, so
-the database enforces the rules itself:
+## RLS lockdown (what clients may write directly)
 
-- **`vis_jobs`** and **`vis_audit_log`** are SELECT-only for `authenticated`. Nothing on the
-  impersonated `db` connection may INSERT/UPDATE/DELETE them. Users queue jobs only through
-  `vis_enqueue_audit_job(audit_id)` / `vis_enqueue_campaign_job(campaign_business_id, type)`
-  (`SECURITY DEFINER`, wrapped by `lib/enqueue.ts`). Those RPCs check membership, dedupe open
-  jobs, re-check the credit balance, and raise `VS404`/`VS402`/`VS400`, which
-  `enqueueErrorResponse()` maps to HTTP. Job deletes (audit/campaign DELETE routes) do an
-  impersonated ownership read first, then run on `serviceDb` scoped by `account_id`.
-- **`vis_campaign_businesses`**: clients can INSERT only `(campaign_id, business_id, stage)` and
-  UPDATE only `(stage, updated_at)` (column grants). The engine-owned `redesign_*`/`booking_*`
-  columns are written only by the engine (`serviceDb`) or the enqueue RPC. A trigger
-  (`vis_check_campaign_business_tenant`) rejects a `business_id` from another tenant.
-- **`vis_calendly_connections`**: clients can SELECT only the non-secret columns. Tokens are read
-  and written only in `lib/engine/calendly.ts` via `serviceDb`. `SELECT *` on the impersonated
-  connection fails with a permission error.
-- **`vis_create_account_with_owner`** / **`vis_start_trial`** are not executable by `anon`.
-  Account creation needs `auth.uid()` and is capped at one *owned* account per user (`VS409`,
-  swallowed by `createAccount()`). Invitation memberships don't count toward the cap.
+The Supabase anon key is public, so any signed-in user can hit PostgREST directly and skip every
+check in `app/api/*` — RLS is the real boundary, not the routes. Migration `vis_rls_lockdown`
+narrowed the tables where a plain tenant-member `FOR ALL` policy was too broad:
+
+- **Jobs are queued only via `vis_enqueue_job(p_type, p_target_id)`** (`lib/jobs.ts`'s
+  `enqueueJob()`) — `SECURITY DEFINER`, `authenticated`-only. It checks the target (audit id for
+  `run_audit`, campaign_business id for `build_redesign`/`create_booking_link`) belongs to the
+  caller's account, builds the payload itself from that row (never trusts a client payload),
+  refuses at a `<= 0` credit balance (raises `insufficient_credits` → routes return `402`), and for
+  campaign jobs resets that row's `redesign_`/`booking_` status+error to `pending`. `audit_business`
+  jobs are never client-enqueueable — only the worker fans them out (via `serviceDb`).
+- `vis_campaign_businesses`: insert requires the business to belong to the same account as the
+  campaign; `redesign_*`/`booking_*` are engine-owned.
+- `vis_audit_log`: members read only; written via `serviceDb` (`lib/auditLog.ts`).
+- `vis_calendly_connections`: members can read connection status (name/URIs) and delete, but have
+  no column privilege on `access_token`/`refresh_token` — only `serviceDb` code reads tokens.
+- `vis_create_account_with_owner()`/`vis_start_trial()`: `authenticated` only (were executable by
+  `anon`); a user can own at most one account (`createAccount()` treats that refusal as "already
+  onboarded" and redirects to `/app`). Invitation memberships don't count toward the cap.
+- Defense in depth: `lib/engine/worker.ts`'s `assertCampaignBusinessOwnedBy()` re-checks that a
+  campaign job's row belongs to the job's account before the worker (RLS-bypassing) touches it.
+
+**Phase 2** (`vis_jobs` SELECT-only, column grants on `vis_campaign_businesses`) was held back
+at first because the deployed code still wrote those tables directly. The code no longer does:
+job deletes in the audit/campaign DELETE routes do an impersonated ownership read, then run on
+`serviceDb` scoped by `account_id`. On a fresh Supabase project, apply it in the initial schema
+alongside the rest; on a live one, apply it once this code is deployed:
+
+```sql
+drop policy if exists vis_tenant_isolation on public.vis_jobs;
+create policy vis_jobs_member_read on public.vis_jobs for select
+  using (exists (select 1 from vis_account_users au where au.account_id = vis_jobs.account_id and au.user_id = auth.uid()));
+revoke insert, update, delete, truncate on public.vis_jobs from anon, authenticated;
+revoke insert, update on public.vis_campaign_businesses from anon, authenticated;
+grant insert (campaign_id, business_id) on public.vis_campaign_businesses to authenticated;
+grant update (stage, updated_at) on public.vis_campaign_businesses to authenticated;
+```
 
 When adding a table or RPC, grant clients the narrowest thing that works rather than copying the
-old `FOR ALL` tenant policy. Then verify with a rolled-back impersonation transaction that the
-blocked paths return `42501`.
+old `FOR ALL` tenant policy, then verify with a rolled-back impersonation transaction
+(`set_config('request.jwt.claims', ...)` + `SET LOCAL ROLE authenticated`) that the blocked paths
+return `42501`.
 
 ## Settings
 

@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
-import { enqueueAuditJob, enqueueErrorResponse } from "@/lib/enqueue";
+import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
 
-const CREDIT_MSG = "Your credit balance is $0 — add credits in Billing before running a new audit.";
-
-// The job insert (inside the vis_enqueue_audit_job RPC) fires a Postgres
-// trigger (pg_net) that POSTs to /api/engine/run instantly — no
-// application-side call needed. See CLAUDE.md "The automated engine".
+// The insert below fires a Postgres trigger (pg_net) that POSTs to
+// /api/engine/run instantly — no application-side call needed. See CLAUDE.md
+// "The automated engine".
 export async function POST(req: Request) {
   const body = await req.json();
   const category = String(body.category ?? "").trim();
@@ -30,14 +28,15 @@ export async function POST(req: Request) {
   const balance = await getCreditBalance(accountId);
   if (balance <= 0) {
     return NextResponse.json(
-      { error: CREDIT_MSG },
+      { error: "Your credit balance is $0 — add credits in Billing before running a new audit." },
       { status: 402 }
     );
   }
 
+  // One transaction: if vis_enqueue_job() refuses (it re-checks the balance
+  // inside Postgres), the audit row rolls back with it instead of being left
+  // behind as a queued audit with no job.
   try {
-    // One transaction: if the enqueue RPC refuses (it re-checks balance
-    // inside Postgres), the audit row rolls back with it.
     const auditId = await db.transaction(async (tx) => {
       const audit = await tx
         .prepare(
@@ -45,13 +44,17 @@ export async function POST(req: Request) {
            VALUES (?, ?, ?, ?, ?, ?)`
         )
         .run(query, category, location, target, body.notes?.trim() || null, accountId);
-      await enqueueAuditJob(tx, audit.lastInsertRowid as number);
+      await enqueueJob(tx, "run_audit", audit.lastInsertRowid as number);
       return audit.lastInsertRowid;
     });
     return NextResponse.json({ id: auditId });
   } catch (err) {
-    const res = enqueueErrorResponse(err, CREDIT_MSG);
-    if (res) return res;
+    if (isInsufficientCredits(err)) {
+      return NextResponse.json(
+        { error: "Your credit balance is $0 — add credits in Billing before running a new audit." },
+        { status: 402 }
+      );
+    }
     throw err;
   }
 }

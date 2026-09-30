@@ -7,6 +7,7 @@ import {
   Download,
   KanbanSquare,
 } from "lucide-react";
+import { ACCESS_FEE_USD, TRIAL_DAYS, TRIAL_STARTER_CREDIT_USD, formatUsd } from "@/lib/pricing";
 
 const FEATURES = [
   {
@@ -92,6 +93,11 @@ export default function MarketingHome() {
             See pricing
           </Link>
         </div>
+        <p className="mt-5 text-sm text-slate-500">
+          {TRIAL_DAYS}-day free trial with {formatUsd(TRIAL_STARTER_CREDIT_USD)} of
+          credit · then {formatUsd(ACCESS_FEE_USD)} one-time · pay-as-you-go
+          credits, no subscription
+        </p>
       </section>
 
       <section className="max-w-5xl mx-auto px-6 py-16 border-t border-ink-700">

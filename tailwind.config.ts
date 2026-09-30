@@ -1,10 +1,14 @@
 import type { Config } from "tailwindcss";
 
 // darkMode "class" + the shadcn/ui CSS-variable color set below are required
-// by every shadcn/21st.dev component — this app is dark-only (no light
-// variant is defined in globals.css), but shadcn's generated components
-// still reference these semantic names (bg-background, text-foreground,
-// etc.), not raw ink/slate classes.
+// by every shadcn/21st.dev component (bg-background, text-foreground, etc.).
+//
+// Light/dark theming: the app's own palette (ink, slate, and the light accent
+// shades used as text) resolves through CSS variables defined in globals.css,
+// swapped by a `light`/`dark` class on <html> (components/ThemeToggle.tsx).
+// Existing classes like bg-ink-900 / text-slate-100 therefore follow the
+// theme automatically — ink stays "surface", slate stays "text", whichever
+// theme is active. Don't hardcode hex colors in components, or they won't.
 const config: Config = {
   darkMode: ["class"],
   content: [
@@ -15,11 +19,50 @@ const config: Config = {
     extend: {
       colors: {
         ink: {
-          950: "#08090f",
-          900: "#0e0f1a",
-          800: "#151726",
-          700: "#212437",
-          600: "#33374f",
+          950: "rgb(var(--ink-950) / <alpha-value>)",
+          900: "rgb(var(--ink-900) / <alpha-value>)",
+          800: "rgb(var(--ink-800) / <alpha-value>)",
+          700: "rgb(var(--ink-700) / <alpha-value>)",
+          600: "rgb(var(--ink-600) / <alpha-value>)",
+        },
+        slate: {
+          50: "rgb(var(--slate-50) / <alpha-value>)",
+          100: "rgb(var(--slate-100) / <alpha-value>)",
+          200: "rgb(var(--slate-200) / <alpha-value>)",
+          300: "rgb(var(--slate-300) / <alpha-value>)",
+          400: "rgb(var(--slate-400) / <alpha-value>)",
+          500: "rgb(var(--slate-500) / <alpha-value>)",
+          600: "rgb(var(--slate-600) / <alpha-value>)",
+          700: "rgb(var(--slate-700) / <alpha-value>)",
+          800: "rgb(var(--slate-800) / <alpha-value>)",
+          900: "rgb(var(--slate-900) / <alpha-value>)",
+          950: "rgb(var(--slate-950) / <alpha-value>)",
+        },
+        // Only the pale shades used as text on dark surfaces — they get darker
+        // values in light mode for contrast. Other shades (bg-indigo-600
+        // buttons, bg-*-500/10 tints) are Tailwind defaults and work in both.
+        indigo: {
+          300: "rgb(var(--indigo-300) / <alpha-value>)",
+          400: "rgb(var(--indigo-400) / <alpha-value>)",
+        },
+        emerald: {
+          300: "rgb(var(--emerald-300) / <alpha-value>)",
+          400: "rgb(var(--emerald-400) / <alpha-value>)",
+        },
+        amber: {
+          300: "rgb(var(--amber-300) / <alpha-value>)",
+          400: "rgb(var(--amber-400) / <alpha-value>)",
+        },
+        red: {
+          300: "rgb(var(--red-300) / <alpha-value>)",
+          400: "rgb(var(--red-400) / <alpha-value>)",
+        },
+        rose: {
+          300: "rgb(var(--rose-300) / <alpha-value>)",
+          400: "rgb(var(--rose-400) / <alpha-value>)",
+        },
+        cyan: {
+          400: "rgb(var(--cyan-400) / <alpha-value>)",
         },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",

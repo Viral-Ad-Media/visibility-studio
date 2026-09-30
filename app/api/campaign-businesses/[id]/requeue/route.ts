@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
-import { enqueueCampaignJob, enqueueErrorResponse } from "@/lib/enqueue";
+import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
 
 const TYPES = ["build_redesign", "create_booking_link"] as const;
 
@@ -18,18 +18,29 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     );
   }
 
-  // The RPC checks ownership, already-queued and credit balance in Postgres,
-  // builds the job payload itself, and resets the engine-owned
-  // redesign_*/booking_* status columns (clients can't write those).
+  const row = await db.prepare("SELECT id FROM vis_campaign_businesses WHERE id = ?").get(id);
+  if (!row) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  const open = await db
+    .prepare(
+      `SELECT id FROM vis_jobs
+       WHERE type=? AND status IN ('pending','running')
+         AND (payload::json->>'campaign_business_id')::bigint = ?`
+    )
+    .get(type, id);
+  if (open) return NextResponse.json({ ok: true, already_queued: true });
+
+  // The RPC also resets this row's redesign_/booking_ status+error to pending
+  // (those columns are engine-owned and not client-writable).
   try {
-    const result = await enqueueCampaignJob(db, id, type as (typeof TYPES)[number]);
-    if (result.already_queued) return NextResponse.json({ ok: true, already_queued: true });
+    await enqueueJob(db, type as "build_redesign" | "create_booking_link", id);
   } catch (err) {
-    const res = enqueueErrorResponse(
-      err,
-      "Your credit balance is $0 — add credits in Billing before re-running this."
-    );
-    if (res) return res;
+    if (isInsufficientCredits(err)) {
+      return NextResponse.json(
+        { error: "Your credit balance is $0 — add credits in Billing before retrying." },
+        { status: 402 }
+      );
+    }
     throw err;
   }
 

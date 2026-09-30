@@ -8,7 +8,13 @@ import { logAuditEvent } from "@/lib/auditLog";
 export async function login(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/app");
+  // `next` round-trips through a query string anyone can craft, so only
+  // follow same-site paths — "//evil.com" or "https://evil.com" would
+  // otherwise turn the login form into an open redirect.
+  const rawNext = String(formData.get("next") ?? "/app");
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.startsWith("/\\")
+    ? rawNext
+    : "/app";
 
   const { error } = await supabaseServerClient().auth.signInWithPassword({ email, password });
   if (error) {
@@ -81,7 +87,8 @@ export async function createAccount(formData: FormData) {
   // the type from, so Postgres can't resolve the overload without a hint.
   // An unknown/garbage ref code is a silent no-op inside the RPC itself —
   // never blocks account creation over a bad referral link.
-  // The RPC caps each user at one *owned* account (VS409) — stops repeat
+  //
+  // The RPC caps each user at one *owned* account — stops repeat
   // $20 trial-credit farming. Someone who already owns one (e.g. revisited
   // /onboarding, or double-submitted) just lands in their existing account.
   try {
@@ -89,7 +96,7 @@ export async function createAccount(formData: FormData) {
       .prepare("SELECT vis_create_account_with_owner(@name::text, @ref::text) AS id")
       .get({ name, ref });
   } catch (err) {
-    if ((err as { code?: string }).code !== "VS409") throw err;
+    if (!(err instanceof Error && err.message === "you already own an account")) throw err;
   }
   redirect("/app");
 }

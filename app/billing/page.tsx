@@ -5,6 +5,7 @@ import { supabaseServerClient } from "@/lib/supabase-server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
 import { hasAppAccess, type Account } from "@/lib/shared";
+import { ACCESS_FEE_USD, TRIAL_DAYS, TRIAL_STARTER_CREDIT_USD, formatUsd } from "@/lib/pricing";
 import { BuyAccessButton, BuyCreditsGrid, StartTrialButton } from "@/components/BillingActions";
 import { logout } from "@/app/(auth)/actions";
 import { Badge } from "@/components/ui/badge";
@@ -79,7 +80,7 @@ export default async function BillingPage({
                       </div>
                       <CardTitle className="font-mono text-sm text-muted-foreground">Trial</CardTitle>
                       <Badge variant="secondary" className="ml-auto rounded-full">
-                        30 days
+                        {TRIAL_DAYS} days
                       </Badge>
                     </div>
                     <div className="mt-3 flex items-baseline gap-2">
@@ -87,7 +88,7 @@ export default async function BillingPage({
                     </div>
                     <CardDescription className="pt-2">
                       Full access to automated audits and campaigns, no payment required. Comes
-                      with $20 of starter credit. One trial per account.
+                      with {formatUsd(TRIAL_STARTER_CREDIT_USD)} of starter credit. One trial per account.
                     </CardDescription>
                   </CardHeader>
                   <CardFooter>
@@ -109,7 +110,7 @@ export default async function BillingPage({
                     </Badge>
                   </div>
                   <div className="mt-3 flex items-baseline gap-2">
-                    <span className="text-3xl font-bold">$97</span>
+                    <span className="text-3xl font-bold">{formatUsd(ACCESS_FEE_USD)}</span>
                   </div>
                   <CardDescription className="pt-2">
                     One-time payment for full access to audits, campaigns, and every feature

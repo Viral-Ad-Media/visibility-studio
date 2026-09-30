@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
-import { enqueueCampaignJob, enqueueErrorResponse } from "@/lib/enqueue";
+import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
 
 // Create a campaign from a set of businesses within one audit. Queues one
 // build_redesign and one create_booking_link job per business.
@@ -47,11 +47,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const CREDIT_MSG =
-    "Your credit balance is $0 — add credits in Billing before creating a new campaign.";
   try {
-    // One transaction: if either enqueue RPC refuses (it re-checks balance
-    // and ownership inside Postgres), the campaign and its rows roll back.
     const campaignId = await db.transaction(async (tx) => {
       const campaign = await tx
         .prepare("INSERT INTO vis_campaigns (audit_id, name) VALUES (?, ?)")
@@ -65,16 +61,20 @@ export async function POST(req: Request) {
       for (const businessId of businessIds) {
         const cb = await insertCb.run(id, businessId);
         const campaignBusinessId = cb.lastInsertRowid as number;
-        await enqueueCampaignJob(tx, campaignBusinessId, "build_redesign");
-        await enqueueCampaignJob(tx, campaignBusinessId, "create_booking_link");
+        await enqueueJob(tx, "build_redesign", campaignBusinessId);
+        await enqueueJob(tx, "create_booking_link", campaignBusinessId);
       }
       return id;
     });
 
     return NextResponse.json({ id: campaignId });
   } catch (err) {
-    const res = enqueueErrorResponse(err, CREDIT_MSG);
-    if (res) return res;
+    if (isInsufficientCredits(err)) {
+      return NextResponse.json(
+        { error: "Your credit balance is $0 — add credits in Billing before creating a new campaign." },
+        { status: 402 }
+      );
+    }
     throw err;
   }
 }

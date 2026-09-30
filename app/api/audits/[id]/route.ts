@@ -1,27 +1,35 @@
 import { NextResponse } from "next/server";
 import db, { Audit, serviceDb } from "@/lib/db";
-import { enqueueAuditJob, enqueueErrorResponse } from "@/lib/enqueue";
+import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
 
-// Requeue an audit (e.g. after an error, or to top up businesses). The job
-// insert (inside the vis_enqueue_audit_job RPC) fires a Postgres trigger (pg_net) that POSTs to
+// Requeue an audit (e.g. after an error, or to top up businesses). The
+// insert below fires a Postgres trigger (pg_net) that POSTs to
 // /api/engine/run instantly — no application-side call needed.
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
-  // The RPC does the ownership, already-queued and credit checks in Postgres
-  // (clients can't insert into vis_jobs directly — see lib/enqueue.ts).
-  let result;
+  const audit = await db.prepare("SELECT id FROM vis_audits WHERE id = ?").get(id);
+  if (!audit) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  const open = await db
+    .prepare(
+      `SELECT id FROM vis_jobs
+       WHERE type='run_audit' AND status IN ('pending','running')
+         AND (payload::json->>'audit_id')::bigint = ?`
+    )
+    .get(id);
+  if (open) return NextResponse.json({ ok: true, already_queued: true });
+
   try {
-    result = await enqueueAuditJob(db, id);
+    await enqueueJob(db, "run_audit", id);
   } catch (err) {
-    const res = enqueueErrorResponse(
-      err,
-      "Your credit balance is $0 — add credits in Billing before re-running this audit."
-    );
-    if (res) return res;
+    if (isInsufficientCredits(err)) {
+      return NextResponse.json(
+        { error: "Your credit balance is $0 — add credits in Billing before re-running this audit." },
+        { status: 402 }
+      );
+    }
     throw err;
   }
-  if (result.already_queued) return NextResponse.json({ ok: true, already_queued: true });
-
   await db
     .prepare("UPDATE vis_audits SET status='queued', updated_at=now()::text WHERE id = ?")
     .run(id);
