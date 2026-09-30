@@ -156,26 +156,31 @@ narrowed the tables where a plain tenant-member `FOR ALL` policy was too broad:
 - `vis_calendly_connections`: members can read connection status (name/URIs) and delete, but have
   no column privilege on `access_token`/`refresh_token` — only `serviceDb` code reads tokens.
 - `vis_create_account_with_owner()`/`vis_start_trial()`: `authenticated` only (were executable by
-  `anon`); a user can own at most one account.
+  `anon`); a user can own at most one account (`createAccount()` treats that refusal as "already
+  onboarded" and redirects to `/app`). Invitation memberships don't count toward the cap.
 - Defense in depth: `lib/engine/worker.ts`'s `assertCampaignBusinessOwnedBy()` re-checks that a
   campaign job's row belongs to the job's account before the worker (RLS-bypassing) touches it.
 
-**Phase 2 is still pending** — deliberately not applied with the rest, because the code deployed
-at the time still INSERTed into `vis_jobs` and UPDATEd campaign-business status columns directly.
-Apply it (migration `vis_rls_lockdown_phase2`) only once the `enqueueJob()` code is live in
-production:
+**Phase 2** (`vis_jobs` SELECT-only, column grants on `vis_campaign_businesses`) was held back
+at first because the deployed code still wrote those tables directly. The code no longer does:
+job deletes in the audit/campaign DELETE routes do an impersonated ownership read, then run on
+`serviceDb` scoped by `account_id`. On a fresh Supabase project, apply it in the initial schema
+alongside the rest; on a live one, apply it once this code is deployed:
 
 ```sql
 drop policy if exists vis_tenant_isolation on public.vis_jobs;
 create policy vis_jobs_member_read on public.vis_jobs for select
   using (exists (select 1 from vis_account_users au where au.account_id = vis_jobs.account_id and au.user_id = auth.uid()));
-create policy vis_jobs_member_delete on public.vis_jobs for delete
-  using (exists (select 1 from vis_account_users au where au.account_id = vis_jobs.account_id and au.user_id = auth.uid()));
-revoke insert, update on public.vis_jobs from anon, authenticated;
+revoke insert, update, delete, truncate on public.vis_jobs from anon, authenticated;
 revoke insert, update on public.vis_campaign_businesses from anon, authenticated;
 grant insert (campaign_id, business_id) on public.vis_campaign_businesses to authenticated;
 grant update (stage, updated_at) on public.vis_campaign_businesses to authenticated;
 ```
+
+When adding a table or RPC, grant clients the narrowest thing that works rather than copying the
+old `FOR ALL` tenant policy, then verify with a rolled-back impersonation transaction
+(`set_config('request.jwt.claims', ...)` + `SET LOCAL ROLE authenticated`) that the blocked paths
+return `42501`.
 
 ## Settings
 
