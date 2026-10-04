@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
-import { enqueueJob } from "@/lib/jobs";
+import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
 
 // The insert below fires a Postgres trigger (pg_net) that POSTs to
 // /api/engine/run instantly — no application-side call needed. See CLAUDE.md
@@ -33,14 +33,28 @@ export async function POST(req: Request) {
     );
   }
 
-  const audit = await db
-    .prepare(
-      `INSERT INTO vis_audits (query, category, location, target_count, notes, account_id)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(query, category, location, target, body.notes?.trim() || null, accountId);
-
-  await enqueueJob(db, "run_audit", audit.lastInsertRowid as number);
-
-  return NextResponse.json({ id: audit.lastInsertRowid });
+  // One transaction: if vis_enqueue_job() refuses (it re-checks the balance
+  // inside Postgres), the audit row rolls back with it instead of being left
+  // behind as a queued audit with no job.
+  try {
+    const auditId = await db.transaction(async (tx) => {
+      const audit = await tx
+        .prepare(
+          `INSERT INTO vis_audits (query, category, location, target_count, notes, account_id)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+        .run(query, category, location, target, body.notes?.trim() || null, accountId);
+      await enqueueJob(tx, "run_audit", audit.lastInsertRowid as number);
+      return audit.lastInsertRowid;
+    });
+    return NextResponse.json({ id: auditId });
+  } catch (err) {
+    if (isInsufficientCredits(err)) {
+      return NextResponse.json(
+        { error: "Your credit balance is $0 — add credits in Billing before running a new audit." },
+        { status: 402 }
+      );
+    }
+    throw err;
+  }
 }

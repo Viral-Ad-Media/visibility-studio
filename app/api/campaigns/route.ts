@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
-import { enqueueJob } from "@/lib/jobs";
+import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
 
 // Create a campaign from a set of businesses within one audit. Queues one
 // build_redesign and one create_booking_link job per business.
@@ -47,24 +47,34 @@ export async function POST(req: Request) {
     );
   }
 
-  const campaignId = await db.transaction(async (tx) => {
-    const campaign = await tx
-      .prepare("INSERT INTO vis_campaigns (audit_id, name) VALUES (?, ?)")
-      .run(auditId, name);
-    const id = campaign.lastInsertRowid as number;
+  try {
+    const campaignId = await db.transaction(async (tx) => {
+      const campaign = await tx
+        .prepare("INSERT INTO vis_campaigns (audit_id, name) VALUES (?, ?)")
+        .run(auditId, name);
+      const id = campaign.lastInsertRowid as number;
 
-    const insertCb = tx.prepare(
-      "INSERT INTO vis_campaign_businesses (campaign_id, business_id) VALUES (?, ?)"
-    );
+      const insertCb = tx.prepare(
+        "INSERT INTO vis_campaign_businesses (campaign_id, business_id) VALUES (?, ?)"
+      );
 
-    for (const businessId of businessIds) {
-      const cb = await insertCb.run(id, businessId);
-      const campaignBusinessId = cb.lastInsertRowid as number;
-      await enqueueJob(tx, "build_redesign", campaignBusinessId);
-      await enqueueJob(tx, "create_booking_link", campaignBusinessId);
+      for (const businessId of businessIds) {
+        const cb = await insertCb.run(id, businessId);
+        const campaignBusinessId = cb.lastInsertRowid as number;
+        await enqueueJob(tx, "build_redesign", campaignBusinessId);
+        await enqueueJob(tx, "create_booking_link", campaignBusinessId);
+      }
+      return id;
+    });
+
+    return NextResponse.json({ id: campaignId });
+  } catch (err) {
+    if (isInsufficientCredits(err)) {
+      return NextResponse.json(
+        { error: "Your credit balance is $0 — add credits in Billing before creating a new campaign." },
+        { status: 402 }
+      );
     }
-    return id;
-  });
-
-  return NextResponse.json({ id: campaignId });
+    throw err;
+  }
 }
