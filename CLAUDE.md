@@ -1,5 +1,7 @@
 # Visibility Studio
 
+Audit hardening update: see `README.md` for the current database rollout and operating contract. The older deployment notes below describe the historical baseline. Current code uses Next.js 16, `proxy.ts`, active account claims, `vis_enqueue_job_guarded`, `vis_claim_job_v2`, and `vis_start_trial_for_account`. CLI `complete`/`fail` require the claimed `--attempt`; completion metadata must include measured `estimated_cost_usd`. Upgrade SQL is now versioned in `supabase/migrations`; the historical schema still needs export from Vam-dashboard.
+
 Multi-tenant business-visibility audit SaaS. The Next.js app (deployed on Vercel) is the visual
 cockpit; **Supabase (Postgres + Auth) is the database**, with every tenant-owned table scoped by
 Row Level Security via `account_id`. Both audits (`run_audit`/`audit_business` jobs) and campaigns
@@ -26,7 +28,7 @@ automatically, near-instantly, with no human trigger:
   matching value lives in Supabase Vault (`vis_engine_webhook_url`/`vis_engine_webhook_secret`,
   set via `execute_sql`, never committed to git).
 - **Processing**: `lib/engine/worker.ts` claims one job via the `vis_claim_job()` RPC (`SECURITY
-  DEFINER`, `FOR UPDATE SKIP LOCKED`), bounded to ~50s per invocation (`maxDuration = 60` on the
+DEFINER`, `FOR UPDATE SKIP LOCKED`), bounded to ~50s per invocation (`maxDuration = 60` on the
   route). A `run_audit` job (`lib/engine/discover.ts`) discovers up to `target_count` candidate
   businesses via the Claude API + `web_search`, then fans out one `audit_business` job row per
   candidate — those get drained independently (and concurrently, across separate invocations) by
@@ -89,10 +91,10 @@ scope was explicitly confirmed with the user before building rather than assumed
 
 ## The skills
 
-| Skill | Trigger | What it does |
-|---|---|---|
-| `/run-audits` | manual/debug fallback only — audits now drain automatically, see "The automated engine" | drains pending `run_audit` / `audit_business` jobs by hand — finds businesses in the niche + location, audits each website, scrapes public contact emails, scores 1–5, drafts personalized outreach, and writes each business row back into the DB as it finishes |
-| `/run-campaigns` | manual/debug fallback only — campaigns now drain automatically, see "The automated engine" | drains pending `build_redesign` / `create_booking_link` jobs by hand — builds a self-contained HTML redesign mockup addressing that business's own findings and creates a real single-use Calendly booking link |
+| Skill            | Trigger                                                                                    | What it does                                                                                                                                                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/run-audits`    | manual/debug fallback only — audits now drain automatically, see "The automated engine"    | drains pending `run_audit` / `audit_business` jobs by hand — finds businesses in the niche + location, audits each website, scrapes public contact emails, scores 1–5, drafts personalized outreach, and writes each business row back into the DB as it finishes |
+| `/run-campaigns` | manual/debug fallback only — campaigns now drain automatically, see "The automated engine" | drains pending `build_redesign` / `create_booking_link` jobs by hand — builds a self-contained HTML redesign mockup addressing that business's own findings and creates a real single-use Calendly booking link                                                   |
 
 ## Database
 
@@ -198,7 +200,7 @@ over the connected account's active event types.
 - The **only** place that grants `vis_accounts.access_granted` or writes `vis_credits_ledger` is
   the Stripe webhook (`app/api/billing/webhook/route.ts`), which verifies the Stripe signature and
   uses `serviceDb`. Never grant access or add credits from anywhere else, including the engine
-  worker or a manual script — the worker only ever *deducts* (see below). `middleware.ts` exempts
+  worker or a manual script — the worker only ever _deducts_ (see below). `middleware.ts` exempts
   `/api/billing/webhook` from the auth gate the same way it already exempts `/api/engine/run` —
   both are called server-to-server with no browser session, verified by their own signature/secret
   instead.
@@ -226,16 +228,16 @@ over the connected account's active event types.
   both refuse (`402`) to queue new work once `getCreditBalance(accountId) <= 0` — already-running
   jobs are unaffected, this only blocks starting new ones. A job's cost is only known after the
   Claude call completes, so a single expensive job can push balance slightly negative before the
-  block kicks in on the *next* attempt — acceptable, same shape as most usage-based metering.
+  block kicks in on the _next_ attempt — acceptable, same shape as most usage-based metering.
 - **Existing accounts were grandfathered when this shipped** (migration `vis_billing_trial_credits`
   set `access_granted = true` and seeded a $100 credit balance for every account that existed at
-  the time) — never assume that's still true for a *future* schema change; recheck before reusing
+  the time) — never assume that's still true for a _future_ schema change; recheck before reusing
   this "no backfill breaks existing data" pattern.
 - **Usage/cost audit trail**: `/app/audit-trail` (`app/app/audit-trail/page.tsx`) is a read-only
   account activity log — team member add/remove, password changes, Calendly connections, plus
   audit-completed/redesign-built/booking-link-created events, each optionally tagged with a real
   `cost_usd` (`vis_audit_log`, written via `lib/auditLog.ts`'s `logAuditEvent()`). This is a
-  *display* of the same spend `vis_credits_ledger` deducts, not a second ledger — `vis_credits_ledger`
+  _display_ of the same spend `vis_credits_ledger` deducts, not a second ledger — `vis_credits_ledger`
   is the one source of truth for "can this account afford to run something," `vis_audit_log` is
   just "what happened and what did it cost."
 - **Env vars**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (dashboard.stripe.com → Developers →

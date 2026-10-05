@@ -1,8 +1,15 @@
 "use client";
+import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Copy, Check, ExternalLink } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Check,
+  ExternalLink,
+} from "lucide-react";
 import type { Business } from "@/lib/shared";
 import { CRM_STATUSES } from "@/lib/shared";
 import StatusSelect from "@/components/StatusSelect";
@@ -22,10 +29,10 @@ function Score({ label, value }: { label: string; value: number | null }) {
           value == null
             ? "text-slate-600"
             : value >= 4
-            ? "text-emerald-400"
-            : value >= 3
-            ? "text-amber-400"
-            : "text-red-400"
+              ? "text-emerald-400"
+              : value >= 3
+                ? "text-amber-400"
+                : "text-red-400"
         }`}
       >
         {value ?? "–"}
@@ -51,14 +58,26 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      onClick={() => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch (error) {
+          window.alert(
+            error instanceof Error
+              ? error.message
+              : "Operation failed. Please try again.",
+          );
+        }
       }}
       className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-2.5 py-1.5 rounded-lg"
     >
-      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? (
+        <Check className="w-3.5 h-3.5 text-emerald-400" />
+      ) : (
+        <Copy className="w-3.5 h-3.5" />
+      )}
       {copied ? "Copied" : label}
     </button>
   );
@@ -78,14 +97,24 @@ function Row({
   const router = useRouter();
 
   async function setStatus(status: string) {
-    setSaving(true);
-    await fetch(`/api/businesses/${b.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ crm_status: status }),
-    });
-    setSaving(false);
-    router.refresh();
+    try {
+      setSaving(true);
+      await apiFetch(`/api/businesses/${b.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crm_status: status }),
+      });
+      setSaving(false);
+      router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Operation failed. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   const hasEmail = b.email && b.email !== "not found";
@@ -113,7 +142,8 @@ function Row({
             <div className="font-medium text-slate-100 truncate">{b.name}</div>
             <div className="text-xs text-slate-500 truncate">
               {b.website ?? "no website"}
-              {b.rating && ` · ★ ${b.rating}${b.review_count ? ` (${b.review_count})` : ""}`}
+              {b.rating &&
+                ` · ★ ${b.rating}${b.review_count ? ` (${b.review_count})` : ""}`}
               {hasEmail && ` · ${b.email}`}
             </div>
           </div>
@@ -130,7 +160,9 @@ function Row({
               {b.priority}
             </span>
           )}
-          <span className="text-xs text-slate-500 shrink-0 w-20 text-right">{b.crm_status}</span>
+          <span className="text-xs text-slate-500 shrink-0 w-20 text-right">
+            {b.crm_status}
+          </span>
         </button>
       </div>
 
@@ -158,7 +190,9 @@ function Row({
               </a>
             )}
             {hasEmail && <CopyButton text={b.email!} label="Copy email" />}
-            {b.phone && <span className="text-xs text-slate-400">{b.phone}</span>}
+            {b.phone && (
+              <span className="text-xs text-slate-400">{b.phone}</span>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <span className="text-[11px] text-slate-500">Status</span>
               <StatusSelect
@@ -190,16 +224,26 @@ function Row({
 
           <div className="grid md:grid-cols-2 gap-5">
             <Section title="Visibility issues" text={b.visibility_issues} />
-            <Section title="Website improvements" text={b.website_improvements} />
-            <Section title="Local SEO opportunities" text={b.local_seo_opportunities} />
-            <Section title="Content opportunities" text={b.content_opportunities} />
+            <Section
+              title="Website improvements"
+              text={b.website_improvements}
+            />
+            <Section
+              title="Local SEO opportunities"
+              text={b.local_seo_opportunities}
+            />
+            <Section
+              title="Content opportunities"
+              text={b.content_opportunities}
+            />
           </div>
 
           {b.outreach_email && (
             <div className="bg-ink-950 border border-ink-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wide">
-                  Outreach draft{b.outreach_subject ? ` — ${b.outreach_subject}` : ""}
+                  Outreach draft
+                  {b.outreach_subject ? ` — ${b.outreach_subject}` : ""}
                 </div>
                 <CopyButton
                   text={
@@ -210,11 +254,15 @@ function Row({
                   label="Copy outreach"
                 />
               </div>
-              <div className="text-sm text-slate-300 whitespace-pre-wrap">{b.outreach_email}</div>
+              <div className="text-sm text-slate-300 whitespace-pre-wrap">
+                {b.outreach_email}
+              </div>
             </div>
           )}
 
-          {b.outreach_angle && <Section title="Outreach angle" text={b.outreach_angle} />}
+          {b.outreach_angle && (
+            <Section title="Outreach angle" text={b.outreach_angle} />
+          )}
           {b.audit_notes && <Section title="Notes" text={b.audit_notes} />}
         </div>
       )}
@@ -243,7 +291,12 @@ export default function BusinessTable({
   return (
     <div className="space-y-2 pb-16">
       {businesses.map((b) => (
-        <Row key={b.id} b={b} selected={selected.has(b.id)} onToggle={() => toggle(b.id)} />
+        <Row
+          key={b.id}
+          b={b}
+          selected={selected.has(b.id)}
+          onToggle={() => toggle(b.id)}
+        />
       ))}
       <CreateCampaignBar
         auditId={auditId}

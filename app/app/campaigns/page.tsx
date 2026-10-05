@@ -1,3 +1,5 @@
+import Pagination from "@/components/Pagination";
+import { PAGE_SIZE, pageNumber } from "@/lib/pagination";
 import Link from "next/link";
 import { Megaphone } from "lucide-react";
 import db, { Campaign } from "@/lib/db";
@@ -17,7 +19,13 @@ type Row = Campaign & {
   in_flight: number;
 };
 
-export default async function CampaignsPage() {
+export default async function CampaignsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = pageNumber((await searchParams).page);
+  const offset = (page - 1) * PAGE_SIZE;
   const campaigns = (await db
     .prepare(
       `SELECT c.*, a.query AS audit_query,
@@ -33,9 +41,11 @@ export default async function CampaignsPage() {
        LEFT JOIN vis_campaign_businesses cb ON cb.campaign_id = c.id
        LEFT JOIN vis_audits a ON a.id = c.audit_id
        GROUP BY c.id, a.query
-       ORDER BY c.id DESC`
+       ORDER BY c.id DESC LIMIT 51 OFFSET ?`,
     )
-    .all()) as Row[];
+    .all(offset)) as Row[];
+  const hasMore = campaigns.length > PAGE_SIZE;
+  campaigns.splice(PAGE_SIZE);
 
   // Estimated cost, summed from each campaign's build_redesign +
   // create_booking_link jobs (lib/engine/worker.ts writes estimated_cost_usd
@@ -48,10 +58,16 @@ export default async function CampaignsPage() {
               SUM(COALESCE((result::json->>'estimated_cost_usd')::numeric, 0)) AS cost
        FROM vis_jobs
        WHERE type IN ('build_redesign','create_booking_link') AND result LIKE '{%'
-       GROUP BY 1`
+         AND (payload::json->>'campaign_id')::bigint = ANY(?)
+       GROUP BY 1`,
     )
-    .all()) as { campaign_id: number; cost: number }[];
-  const costByCampaign = new Map(costs.map((c) => [c.campaign_id, Number(c.cost)]));
+    .all([campaigns.map((c) => c.id)])) as {
+    campaign_id: number;
+    cost: number;
+  }[];
+  const costByCampaign = new Map(
+    costs.map((c) => [c.campaign_id, Number(c.cost)]),
+  );
 
   const anyInFlight = campaigns.some((c) => c.in_flight > 0);
 
@@ -67,11 +83,13 @@ export default async function CampaignsPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-ink-700 bg-ink-800">
             <Megaphone className="h-5 w-5 text-indigo-400" />
           </div>
-          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">No campaigns yet</h2>
+          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">
+            No campaigns yet
+          </h2>
           <p className="mx-auto max-w-sm text-sm text-slate-400 mb-5">
             Open a ready audit, select the businesses worth pursuing, and click{" "}
-            <span className="text-slate-200">Create campaign</span> — each one gets a homepage
-            redesign mockup and a real booking link.
+            <span className="text-slate-200">Create campaign</span> — each one
+            gets a homepage redesign mockup and a real booking link.
           </p>
           <Link
             href="/app"
@@ -88,7 +106,7 @@ export default async function CampaignsPage() {
           <Link
             key={c.id}
             href={`/app/campaigns/${c.id}`}
-            className="card p-5 flex items-center gap-4 hover:border-ink-600 transition-colors block"
+            className="card p-5 flex flex-wrap items-center gap-4 hover:border-ink-600 transition-colors block"
           >
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-slate-100">{c.name}</div>
@@ -99,10 +117,14 @@ export default async function CampaignsPage() {
             </div>
             <div className="text-xs text-slate-400 text-right shrink-0 tabular">
               <div>
-                <span className="text-slate-200 font-medium">{c.redesigns_ready}</span>/{c.total}{" "}
-                mockups ·{" "}
-                <span className="text-slate-200 font-medium">{c.links_ready}</span>/{c.total} links
-                ready
+                <span className="text-slate-200 font-medium">
+                  {c.redesigns_ready}
+                </span>
+                /{c.total} mockups ·{" "}
+                <span className="text-slate-200 font-medium">
+                  {c.links_ready}
+                </span>
+                /{c.total} links ready
               </div>
               <div className="mt-0.5">
                 {c.sent} sent · {c.replied} replied ·{" "}
@@ -126,6 +148,7 @@ export default async function CampaignsPage() {
           </Link>
         ))}
       </div>
+      <Pagination page={page} hasMore={hasMore} path="/app/campaigns" />
     </div>
   );
 }

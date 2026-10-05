@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,21 +14,36 @@ export default function NewAuditForm() {
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const res = await fetch("/api/audits", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, location, target_count: count, notes }),
-    });
-    if (!res.ok) {
-      setError((await res.json()).error ?? "Failed to queue audit");
+    try {
+      e.preventDefault();
+      setBusy(true);
+      setError(null);
+      const res = await apiFetch("/api/audits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category,
+          location,
+          target_count: count,
+          notes,
+        }),
+      });
+      if (!res.ok) {
+        setError((await res.json()).error ?? "Failed to queue audit");
+        setBusy(false);
+        return;
+      }
+      const { id } = await res.json();
+      router.push(`/app/audit/${id}`);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Operation failed. Please try again.",
+      );
+    } finally {
       setBusy(false);
-      return;
     }
-    const { id } = await res.json();
-    router.push(`/app/audit/${id}`);
   }
 
   const input =
@@ -51,7 +67,9 @@ export default function NewAuditForm() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">Location</label>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            Location
+          </label>
           <input
             className={input}
             value={location}

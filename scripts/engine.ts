@@ -28,7 +28,11 @@
  */
 import fs from "fs";
 import { serviceDb as db } from "../lib/db";
-import { upsertBusiness as upsertBusinessRow } from "../lib/business-upsert";
+import { finishJob } from "../lib/engine/finish-job";
+import {
+  upsertBusinessInTransaction,
+  upsertBusiness as upsertBusinessRow,
+} from "../lib/business-upsert";
 
 const OPERATOR_ACCOUNT_ID = Number(process.env.VIS_OPERATOR_ACCOUNT_ID);
 if (!OPERATOR_ACCOUNT_ID) {
@@ -87,10 +91,12 @@ async function jobContext(job: any) {
   const payload = JSON.parse(job.payload || "{}");
   const ctx: any = { job: { ...job, payload } };
   if (payload.audit_id) {
-    ctx.audit = await db.prepare("SELECT * FROM vis_audits WHERE id = ?").get(payload.audit_id);
+    ctx.audit = await db
+      .prepare("SELECT * FROM vis_audits WHERE id = ?")
+      .get(payload.audit_id);
     ctx.existing_businesses = await db
       .prepare(
-        "SELECT id, name, website, priority, crm_status FROM vis_businesses WHERE audit_id = ? ORDER BY id"
+        "SELECT id, name, website, priority, crm_status FROM vis_businesses WHERE audit_id = ? ORDER BY id",
       )
       .all(payload.audit_id);
   }
@@ -102,7 +108,7 @@ async function jobContext(job: any) {
   if (payload.campaign_business_id) {
     ctx.campaign_business = await db
       .prepare(
-        "SELECT id, campaign_id, business_id, stage, redesign_status, booking_status, booking_link, booking_event_type FROM vis_campaign_businesses WHERE id = ?"
+        "SELECT id, campaign_id, business_id, stage, redesign_status, booking_status, booking_link, booking_event_type FROM vis_campaign_businesses WHERE id = ?",
       )
       .get(payload.campaign_business_id);
   }
@@ -115,41 +121,40 @@ async function main() {
   if (cmd === "pending") {
     const jobs = await db
       .prepare(
-        "SELECT * FROM vis_jobs WHERE status IN ('pending','running') AND account_id = ? ORDER BY id"
+        "SELECT * FROM vis_jobs WHERE status IN ('pending','running') AND account_id = ? ORDER BY id",
       )
       .all(OPERATOR_ACCOUNT_ID);
     out(await Promise.all(jobs.map(jobContext)));
   } else if (cmd === "claim") {
     const id = Number(process.argv[3]);
-    const job = (await db
-      .prepare("SELECT * FROM vis_jobs WHERE id = ? AND account_id = ?")
-      .get(id, OPERATOR_ACCOUNT_ID)) as any;
-    if (!job) {
-      console.error(`No job ${id}`);
-      process.exit(1);
-    }
-    await db
-      .prepare("UPDATE vis_jobs SET status='running', updated_at=now()::text WHERE id = ?")
-      .run(id);
+    const job = await db
+      .prepare(
+        "UPDATE vis_jobs SET status='running', attempts=attempts+1, updated_at=now()::text WHERE id=? AND account_id=? AND status='pending' AND attempts<5 RETURNING *",
+      )
+      .get(id, OPERATOR_ACCOUNT_ID);
+    if (!job) throw new Error("Job is not pending or has exhausted attempts");
     const payload = JSON.parse(job.payload || "{}");
-    if (payload.audit_id && (job.type === "run_audit" || job.type === "audit_business")) {
+    if (
+      payload.audit_id &&
+      (job.type === "run_audit" || job.type === "audit_business")
+    ) {
       await db
         .prepare(
-          "UPDATE vis_audits SET status='running', error=NULL, updated_at=now()::text WHERE id = ?"
+          "UPDATE vis_audits SET status='running', error=NULL, updated_at=now()::text WHERE id = ?",
         )
         .run(payload.audit_id);
     }
     if (payload.campaign_business_id && job.type === "build_redesign") {
       await db
         .prepare(
-          "UPDATE vis_campaign_businesses SET redesign_status='running', redesign_error=NULL, updated_at=now()::text WHERE id = ?"
+          "UPDATE vis_campaign_businesses SET redesign_status='running', redesign_error=NULL, updated_at=now()::text WHERE id = ?",
         )
         .run(payload.campaign_business_id);
     }
     if (payload.campaign_business_id && job.type === "create_booking_link") {
       await db
         .prepare(
-          "UPDATE vis_campaign_businesses SET booking_status='running', booking_error=NULL, updated_at=now()::text WHERE id = ?"
+          "UPDATE vis_campaign_businesses SET booking_status='running', booking_error=NULL, updated_at=now()::text WHERE id = ?",
         )
         .run(payload.campaign_business_id);
     }
@@ -173,56 +178,73 @@ async function main() {
       console.error(`No job ${id}`);
       process.exit(1);
     }
+    const attempt = Number(arg("--attempt"));
+    if (!Number.isSafeInteger(attempt) || attempt !== job.attempts)
+      throw new Error("Pass the claimed --attempt token");
     const payload = JSON.parse(job.payload || "{}");
-    const meta = readMeta(job.type === "audit_business" || job.type === "create_booking_link");
+    const meta = readMeta(
+      job.type === "audit_business" || job.type === "create_booking_link",
+    );
 
-    if (job.type === "run_audit") {
-      await db
-        .prepare(
-          `UPDATE vis_audits SET
+    if (
+      !Number.isFinite(meta.estimated_cost_usd) ||
+      meta.estimated_cost_usd < 0
+    )
+      throw new Error(
+        "--meta requires measured estimated_cost_usd (use 0 for no provider usage)",
+      );
+    const completed = await finishJob(
+      db,
+      { ...job, attempts: attempt },
+      meta,
+      async (tx) => {
+        if (job.type === "run_audit") {
+          await tx
+            .prepare(
+              `UPDATE vis_audits SET
              status='ready', error=NULL,
              summary_md=COALESCE(@summary_md, summary_md),
              updated_at=now()::text
-           WHERE id=@id`
-        )
-        .run({ id: payload.audit_id, summary_md: meta.summary_md ?? null });
-    } else if (job.type === "audit_business") {
-      await upsertBusiness(payload.audit_id, meta);
-    } else if (job.type === "build_redesign") {
-      const html = readContent(true);
-      await db
-        .prepare(
-          `UPDATE vis_campaign_businesses SET
+           WHERE id=@id`,
+            )
+            .run({ id: payload.audit_id, summary_md: meta.summary_md ?? null });
+        } else if (job.type === "audit_business") {
+          await upsertBusinessInTransaction(payload.audit_id, meta, tx);
+        } else if (job.type === "build_redesign") {
+          const html = readContent(true);
+          await tx
+            .prepare(
+              `UPDATE vis_campaign_businesses SET
              redesign_status='ready', redesign_error=NULL, redesign_html=@html,
              updated_at=now()::text
-           WHERE id=@id`
-        )
-        .run({ id: payload.campaign_business_id, html });
-    } else if (job.type === "create_booking_link") {
-      if (!meta.booking_link) {
-        console.error(
-          "--meta with at least {booking_link} is required for create_booking_link jobs"
-        );
-        process.exit(1);
-      }
-      await db
-        .prepare(
-          `UPDATE vis_campaign_businesses SET
+           WHERE id=@id`,
+            )
+            .run({ id: payload.campaign_business_id, html });
+        } else if (job.type === "create_booking_link") {
+          if (!meta.booking_link) {
+            console.error(
+              "--meta with at least {booking_link} is required for create_booking_link jobs",
+            );
+            process.exit(1);
+          }
+          await tx
+            .prepare(
+              `UPDATE vis_campaign_businesses SET
              booking_status='ready', booking_error=NULL,
              booking_link=@booking_link, booking_event_type=COALESCE(@booking_event_type, booking_event_type),
              updated_at=now()::text
-           WHERE id=@id`
-        )
-        .run({
-          id: payload.campaign_business_id,
-          booking_link: meta.booking_link,
-          booking_event_type: meta.booking_event_type ?? null,
-        });
-    }
-
-    await db
-      .prepare("UPDATE vis_jobs SET status='done', result=?, updated_at=now()::text WHERE id = ?")
-      .run(meta.result ?? "ok", id);
+           WHERE id=@id`,
+            )
+            .run({
+              id: payload.campaign_business_id,
+              booking_link: meta.booking_link,
+              booking_event_type: meta.booking_event_type ?? null,
+            });
+        }
+      },
+    );
+    if (!completed)
+      throw new Error("Job attempt is stale or already completed");
     out({ ok: true, job_id: id });
   } else if (cmd === "fail") {
     const id = Number(process.argv[3]);
@@ -234,36 +256,48 @@ async function main() {
       console.error(`No job ${id}`);
       process.exit(1);
     }
-    const payload = JSON.parse(job.payload || "{}");
-    await db
-      .prepare(
-        "UPDATE vis_jobs SET status='error', result=?, updated_at=now()::text WHERE id = ?"
-      )
-      .run(message, id);
-    if (payload.audit_id && job.type === "run_audit") {
-      await db
+    const attempt = Number(arg("--attempt"));
+    if (!Number.isSafeInteger(attempt))
+      throw new Error("Pass the claimed --attempt token");
+    await db.transaction(async (tx) => {
+      const current = await tx
+        .prepare("SELECT status, attempts FROM vis_jobs WHERE id=? FOR UPDATE")
+        .get(id);
+      if (current?.status !== "running" || current.attempts !== attempt)
+        throw new Error("Job attempt is stale");
+      const payload = JSON.parse(job.payload || "{}");
+      await tx
         .prepare(
-          "UPDATE vis_audits SET status='error', error=?, updated_at=now()::text WHERE id = ?"
+          "UPDATE vis_jobs SET status='error', reserved_usd=0, result=?, updated_at=now()::text WHERE id = ?",
         )
-        .run(message, payload.audit_id);
-    }
-    if (payload.campaign_business_id && job.type === "build_redesign") {
-      await db
-        .prepare(
-          "UPDATE vis_campaign_businesses SET redesign_status='error', redesign_error=?, updated_at=now()::text WHERE id = ?"
-        )
-        .run(message, payload.campaign_business_id);
-    }
-    if (payload.campaign_business_id && job.type === "create_booking_link") {
-      await db
-        .prepare(
-          "UPDATE vis_campaign_businesses SET booking_status='error', booking_error=?, updated_at=now()::text WHERE id = ?"
-        )
-        .run(message, payload.campaign_business_id);
-    }
+        .run(message, id);
+      if (payload.audit_id && job.type === "run_audit") {
+        await tx
+          .prepare(
+            "UPDATE vis_audits SET status='error', error=?, updated_at=now()::text WHERE id = ?",
+          )
+          .run(message, payload.audit_id);
+      }
+      if (payload.campaign_business_id && job.type === "build_redesign") {
+        await tx
+          .prepare(
+            "UPDATE vis_campaign_businesses SET redesign_status='error', redesign_error=?, updated_at=now()::text WHERE id = ?",
+          )
+          .run(message, payload.campaign_business_id);
+      }
+      if (payload.campaign_business_id && job.type === "create_booking_link") {
+        await tx
+          .prepare(
+            "UPDATE vis_campaign_businesses SET booking_status='error', booking_error=?, updated_at=now()::text WHERE id = ?",
+          )
+          .run(message, payload.campaign_business_id);
+      }
+    });
     out({ ok: true, job_id: id, failed: true });
   } else {
-    console.error("Usage: npm run engine -- <pending|claim|add-business|complete|fail> [args]");
+    console.error(
+      "Usage: npm run engine -- <pending|claim|add-business|complete|fail> [args]",
+    );
     process.exit(1);
   }
 }

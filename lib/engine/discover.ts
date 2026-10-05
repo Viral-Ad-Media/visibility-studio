@@ -1,6 +1,12 @@
 import { z } from "zod";
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAnthropic, ENGINE_MODEL, countSearchCalls, estimateCost, SEARCH_CALL_COST_USD } from "./anthropic";
+import {
+  getAnthropic,
+  ENGINE_MODEL,
+  countSearchCalls,
+  estimateCost,
+  SEARCH_CALL_COST_USD,
+} from "./anthropic";
 import { serviceDb as db } from "../db";
 
 const DISCOVERY_SYSTEM_PROMPT = `You are finding real local businesses for a visibility audit, using live web
@@ -17,7 +23,8 @@ const DISCOVERY_TOOLS: Anthropic.Messages.ToolUnion[] = [
 
 const SUBMIT_CANDIDATES_TOOL: Anthropic.Messages.Tool = {
   name: "submit_candidates",
-  description: "Submit the final list of discovered business candidates for this audit.",
+  description:
+    "Submit the final list of discovered business candidates for this audit.",
   input_schema: {
     type: "object",
     properties: {
@@ -27,7 +34,10 @@ const SUBMIT_CANDIDATES_TOOL: Anthropic.Messages.Tool = {
           type: "object",
           properties: {
             name: { type: "string" },
-            website: { type: "string", description: "Official website URL, if found" },
+            website: {
+              type: "string",
+              description: "Official website URL, if found",
+            },
           },
           required: ["name"],
         },
@@ -38,7 +48,9 @@ const SUBMIT_CANDIDATES_TOOL: Anthropic.Messages.Tool = {
 };
 
 const CandidatesSchema = z.object({
-  candidates: z.array(z.object({ name: z.string(), website: z.string().optional() })),
+  candidates: z.array(
+    z.object({ name: z.string(), website: z.string().optional() }),
+  ),
 });
 
 export type DiscoverResult = {
@@ -50,11 +62,20 @@ export type DiscoverResult = {
 // Discovery only — does not audit each business itself. The caller (worker.ts)
 // fans out one audit_business job row per candidate; those get drained
 // independently (and concurrently, across separate worker invocations).
-export async function discoverCandidates(auditId: number): Promise<DiscoverResult> {
+export async function discoverCandidates(
+  auditId: number,
+): Promise<DiscoverResult> {
   const audit = (await db
-    .prepare("SELECT category, location, target_count, notes FROM vis_audits WHERE id = ?")
+    .prepare(
+      "SELECT category, location, target_count, notes FROM vis_audits WHERE id = ?",
+    )
     .get(auditId)) as
-    | { category: string; location: string; target_count: number; notes: string | null }
+    | {
+        category: string;
+        location: string;
+        target_count: number;
+        notes: string | null;
+      }
     | undefined;
   if (!audit) throw new Error(`audit ${auditId} not found`);
 
@@ -67,12 +88,16 @@ export async function discoverCandidates(auditId: number): Promise<DiscoverResul
   const userIntro = [
     `Find up to ${audit.target_count} real businesses matching: ${audit.category} in ${audit.location}.`,
     audit.notes ? `Notes: ${audit.notes}` : "",
-    existing.length ? `Already covered — skip these: ${existing.map((b) => b.name).join(", ")}` : "",
+    existing.length
+      ? `Already covered — skip these: ${existing.map((b) => b.name).join(", ")}`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
 
-  const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: userIntro }];
+  const messages: Anthropic.Messages.MessageParam[] = [
+    { role: "user", content: userIntro },
+  ];
 
   const discoverResponse = await anthropic.messages.create({
     model: ENGINE_MODEL,
@@ -82,10 +107,15 @@ export async function discoverCandidates(auditId: number): Promise<DiscoverResul
     messages,
   });
   const searchCallCount = countSearchCalls(discoverResponse.content);
-  let estimatedCostUsd = estimateCost(discoverResponse.usage) + searchCallCount * SEARCH_CALL_COST_USD;
+  let estimatedCostUsd =
+    estimateCost(discoverResponse.usage) +
+    searchCallCount * SEARCH_CALL_COST_USD;
 
   messages.push({ role: "assistant", content: discoverResponse.content });
-  messages.push({ role: "user", content: "Submit your candidate list now via submit_candidates." });
+  messages.push({
+    role: "user",
+    content: "Submit your candidate list now via submit_candidates.",
+  });
 
   const submitResponse = await anthropic.messages.create({
     model: ENGINE_MODEL,
@@ -99,12 +129,26 @@ export async function discoverCandidates(auditId: number): Promise<DiscoverResul
   estimatedCostUsd += estimateCost(submitResponse.usage);
 
   const toolUse = submitResponse.content.find(
-    (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use" && b.name === "submit_candidates"
+    (b): b is Anthropic.Messages.ToolUseBlock =>
+      b.type === "tool_use" && b.name === "submit_candidates",
   );
   if (!toolUse) {
-    throw new Error(`Claude did not call submit_candidates (stop_reason: ${submitResponse.stop_reason})`);
+    throw new Error(
+      `Claude did not call submit_candidates (stop_reason: ${submitResponse.stop_reason})`,
+    );
   }
 
   const { candidates } = CandidatesSchema.parse(toolUse.input);
-  return { candidates: candidates.slice(0, audit.target_count), searchCallCount, estimatedCostUsd };
+  const seen = new Set<string>();
+  const unique = candidates.filter((c) => {
+    const key = c.name.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return {
+    candidates: unique.slice(0, audit.target_count),
+    searchCallCount,
+    estimatedCostUsd,
+  };
 }

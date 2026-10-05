@@ -1,3 +1,12 @@
+import { z } from "zod";
+import {
+  apiRoute,
+  parseBody,
+  parseId,
+  auditInput,
+  positiveId,
+  idList,
+} from "@/lib/api";
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
@@ -6,12 +15,15 @@ import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
 // The insert below fires a Postgres trigger (pg_net) that POSTs to
 // /api/engine/run instantly — no application-side call needed. See CLAUDE.md
 // "The automated engine".
-export async function POST(req: Request) {
-  const body = await req.json();
+async function POSTHandler(req: Request) {
+  const body = await parseBody(req, auditInput);
   const category = String(body.category ?? "").trim();
   const location = String(body.location ?? "").trim();
   if (!category || !location) {
-    return NextResponse.json({ error: "category and location are required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "category and location are required" },
+      { status: 400 },
+    );
   }
   const target = Math.min(Math.max(Number(body.target_count) || 10, 1), 50);
   const query = `${category} in ${location}`;
@@ -28,8 +40,11 @@ export async function POST(req: Request) {
   const balance = await getCreditBalance(accountId);
   if (balance <= 0) {
     return NextResponse.json(
-      { error: "Your credit balance is $0 — add credits in Billing before running a new audit." },
-      { status: 402 }
+      {
+        error:
+          "Your credit balance is $0 — add credits in Billing before running a new audit.",
+      },
+      { status: 402 },
     );
   }
 
@@ -41,9 +56,16 @@ export async function POST(req: Request) {
       const audit = await tx
         .prepare(
           `INSERT INTO vis_audits (query, category, location, target_count, notes, account_id)
-           VALUES (?, ?, ?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run(query, category, location, target, body.notes?.trim() || null, accountId);
+        .run(
+          query,
+          category,
+          location,
+          target,
+          body.notes?.trim() || null,
+          accountId,
+        );
       await enqueueJob(tx, "run_audit", audit.lastInsertRowid as number);
       return audit.lastInsertRowid;
     });
@@ -51,10 +73,15 @@ export async function POST(req: Request) {
   } catch (err) {
     if (isInsufficientCredits(err)) {
       return NextResponse.json(
-        { error: "Your credit balance is $0 — add credits in Billing before running a new audit." },
-        { status: 402 }
+        {
+          error:
+            "Your credit balance is $0 — add credits in Billing before running a new audit.",
+        },
+        { status: 402 },
       );
     }
     throw err;
   }
 }
+
+export const POST = apiRoute(POSTHandler, true);

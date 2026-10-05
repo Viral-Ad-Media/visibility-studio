@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { Pool, types } from "pg";
 import { supabaseServerClient } from "./supabase-server";
 
@@ -86,7 +87,18 @@ types.setTypeParser(20, (val) => parseInt(val, 10));
 // pointed back at the pooler.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl:
+    process.env.DATABASE_SSL === "disable"
+      ? false
+      : {
+          rejectUnauthorized: true,
+          ...(process.env.DATABASE_CA_CERT
+            ? { ca: process.env.DATABASE_CA_CERT }
+            : {}),
+        },
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 30000,
+  statement_timeout: 30000,
   max: 3,
 });
 
@@ -103,7 +115,10 @@ export class UnauthenticatedDbAccessError extends Error {
   }
 }
 
-function toPositional(sql: string): { text: string; kind: "named" | "positional" | "none" } {
+function toPositional(sql: string): {
+  text: string;
+  kind: "named" | "positional" | "none";
+} {
   if (/@[a-zA-Z_]\w*/.test(sql)) return { text: sql, kind: "named" };
   if (sql.includes("?")) return { text: sql, kind: "positional" };
   return { text: sql, kind: "none" };
@@ -123,16 +138,25 @@ function compilePositional(sql: string): string {
   return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-function maybeAddReturningId(sql: string): { text: string; addedReturning: boolean } {
+function maybeAddReturningId(sql: string): {
+  text: string;
+  addedReturning: boolean;
+} {
   const isInsert = /^\s*insert/i.test(sql);
   const hasReturning = /returning/i.test(sql);
   if (isInsert && !hasReturning) {
-    return { text: `${sql.replace(/;\s*$/, "")} RETURNING id`, addedReturning: true };
+    return {
+      text: `${sql.replace(/;\s*$/, "")} RETURNING id`,
+      addedReturning: true,
+    };
   }
   return { text: sql, addedReturning: false };
 }
 
-function bindArgs(sql: string, args: unknown[]): { text: string; values: unknown[] } {
+function bindArgs(
+  sql: string,
+  args: unknown[],
+): { text: string; values: unknown[] } {
   const { kind } = toPositional(sql);
   if (kind === "named") {
     const obj = (args[0] ?? {}) as Record<string, unknown>;
@@ -140,14 +164,20 @@ function bindArgs(sql: string, args: unknown[]): { text: string; values: unknown
     return { text, values: names.map((n) => obj[n]) };
   }
   if (kind === "positional") {
-    const values = args.length === 1 && Array.isArray(args[0]) ? (args[0] as unknown[]) : args;
+    const values =
+      args.length === 1 && Array.isArray(args[0])
+        ? (args[0] as unknown[])
+        : args;
     return { text: compilePositional(sql), values };
   }
   return { text: sql, values: [] };
 }
 
 class Stmt {
-  constructor(private sql: string, private query: QueryFn) {}
+  constructor(
+    private sql: string,
+    private query: QueryFn,
+  ) {}
 
   async get(...args: unknown[]): Promise<Row | undefined> {
     const { text, values } = bindArgs(this.sql, args);
@@ -170,7 +200,10 @@ class Stmt {
 }
 
 export class Db {
-  constructor(private query: QueryFn, private beginTx: BeginTx) {}
+  constructor(
+    private query: QueryFn,
+    private beginTx: BeginTx,
+  ) {}
 
   prepare(sql: string): Stmt {
     return new Stmt(sql, this.query);
@@ -206,7 +239,9 @@ let cachedGetRequestUserId: (() => Promise<string>) | undefined;
 function getRequestUserId(): Promise<string> {
   if (!cachedGetRequestUserId) {
     cachedGetRequestUserId = cache(async (): Promise<string> => {
-      const { data, error } = await supabaseServerClient().auth.getUser();
+      const { data, error } = await (
+        await supabaseServerClient()
+      ).auth.getUser();
       if (error || !data.user) throw new UnauthenticatedDbAccessError();
       return data.user.id;
     });
@@ -214,20 +249,41 @@ function getRequestUserId(): Promise<string> {
   return cachedGetRequestUserId();
 }
 
-async function setImpersonation(client: { query: (text: string, values?: unknown[]) => Promise<any> }) {
+export const getRequestAccount = cache(async () => {
   const userId = await getRequestUserId();
+  const requested = Number((await cookies()).get("vis_account_id")?.value);
+  const memberships = await pool.query(
+    "SELECT account_id, role FROM vis_account_users WHERE user_id = $1 ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END, account_id",
+    [userId],
+  );
+  const row =
+    memberships.rows.find((r) => r.account_id === requested) ??
+    memberships.rows[0];
+  return {
+    userId,
+    accountId: row?.account_id as number | undefined,
+    role: row?.role as string | undefined,
+  };
+});
+
+async function setImpersonation(
+  client: { query: (text: string, values?: unknown[]) => Promise<any> },
+  context: Awaited<ReturnType<typeof getRequestAccount>>,
+) {
+  const { userId, accountId } = context;
   await client.query(
-    "SELECT set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
-    [userId]
+    "SELECT set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated', 'vis_account_id', $2::bigint)::text, true)",
+    [userId, accountId ?? null],
   );
   await client.query("SET LOCAL ROLE authenticated");
 }
 
 const impersonatedQuery: QueryFn = async (text, values) => {
+  const context = await getRequestAccount();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await setImpersonation(client);
+    await setImpersonation(client, context);
     const res = await client.query(text, values);
     await client.query("COMMIT");
     return res;
@@ -240,10 +296,11 @@ const impersonatedQuery: QueryFn = async (text, values) => {
 };
 
 const impersonatedBeginTx: BeginTx = async (fn) => {
+  const context = await getRequestAccount();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await setImpersonation(client);
+    await setImpersonation(client, context);
     const txQuery: QueryFn = (text, values) => client.query(text, values);
     const result = await fn(txQuery);
     await client.query("COMMIT");
@@ -290,9 +347,9 @@ export const serviceDb = new Db(serviceQuery, serviceBeginTx);
 // user's account_id explicitly — this is RLS-scoped like any other query,
 // so it can only ever return the caller's own account.
 export async function getCurrentAccountId(): Promise<number> {
-  const row = await db.prepare("SELECT account_id FROM vis_account_users LIMIT 1").get();
-  if (!row) throw new Error("getCurrentAccountId: no account membership for current user");
-  return row.account_id;
+  const { accountId } = await getRequestAccount();
+  if (!accountId) throw new Error("No account membership for current user");
+  return accountId;
 }
 
 export * from "./shared";

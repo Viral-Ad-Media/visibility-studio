@@ -1,25 +1,44 @@
 "use client";
+import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-export default function DeleteCampaignButton({ campaignId }: { campaignId: number }) {
+export default function DeleteCampaignButton({
+  campaignId,
+}: {
+  campaignId: number;
+}) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function remove() {
-    if (!confirming) {
-      setConfirming(true);
-      setTimeout(() => setConfirming(false), 10000);
-      return;
+    try {
+      if (!confirming) {
+        setConfirming(true);
+        setTimeout(() => setConfirming(false), 10000);
+        return;
+      }
+      setBusy(true);
+      await apiFetch(`/api/campaigns/${campaignId}`, { method: "DELETE" });
+      router.push("/app/campaigns");
+      router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Operation failed. Please try again.",
+      );
+    } finally {
+      setBusy(false);
     }
-    setBusy(true);
-    await fetch(`/api/campaigns/${campaignId}`, { method: "DELETE" });
-    router.push("/app/campaigns");
-    router.refresh();
   }
 
   return (

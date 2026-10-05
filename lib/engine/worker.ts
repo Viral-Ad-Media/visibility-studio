@@ -1,17 +1,23 @@
-import { serviceDb as db } from "../db";
+import { serviceDb as db, type Db } from "../db";
 import { PRIORITY_ORDER, type Business } from "../shared";
 import { discoverCandidates } from "./discover";
 import { runAuditBusiness } from "./auditBusiness";
 import { generateRedesign } from "./redesign";
 import { createBookingLink } from "./booking";
-import { logAuditEvent } from "../auditLog";
-import { deductCredits } from "../billing";
+import { safeLogAuditEvent as logAuditEvent } from "../auditLog";
+import { finishJob } from "./finish-job";
+import { upsertBusinessInTransaction } from "../business-upsert";
 
 const MAX_ATTEMPTS = 5;
 
 type JobRow = {
   id: number;
-  type: "run_audit" | "audit_business" | "build_redesign" | "create_booking_link" | string;
+  type:
+    | "run_audit"
+    | "audit_business"
+    | "build_redesign"
+    | "create_booking_link"
+    | string;
   payload: string;
   status: string;
   attempts: number;
@@ -19,18 +25,16 @@ type JobRow = {
 };
 
 async function claimJob(): Promise<JobRow | null> {
-  const job = (await db.prepare("SELECT * FROM vis_claim_job()").get()) as JobRow | null;
+  const job = (await db
+    .prepare("SELECT * FROM vis_claim_job_v2()")
+    .get()) as JobRow | null;
   return job && job.id != null ? job : null;
 }
 
-async function markDone(jobId: number, result: string) {
-  await db
-    .prepare("UPDATE vis_jobs SET status='done', result=?, updated_at=now()::text WHERE id = ?")
-    .run(result, jobId);
-}
-
 function buildSummary(businesses: Business[]): string {
-  const emailsFound = businesses.filter((b) => b.email && b.email !== "not found").length;
+  const emailsFound = businesses.filter(
+    (b) => b.email && b.email !== "not found",
+  ).length;
   const outreachDrafted = businesses.filter((b) => b.outreach_email).length;
   const byPriority = { High: 0, Medium: 0, Low: 0 } as Record<string, number>;
   for (const b of businesses) {
@@ -39,8 +43,9 @@ function buildSummary(businesses: Business[]): string {
   const top3 = [...businesses]
     .sort(
       (a, b) =>
-        (PRIORITY_ORDER[a.priority ?? ""] ?? 3) - (PRIORITY_ORDER[b.priority ?? ""] ?? 3) ||
-        (b.opportunity_score ?? 0) - (a.opportunity_score ?? 0)
+        (PRIORITY_ORDER[a.priority ?? ""] ?? 3) -
+          (PRIORITY_ORDER[b.priority ?? ""] ?? 3) ||
+        (b.opportunity_score ?? 0) - (a.opportunity_score ?? 0),
     )
     .slice(0, 3);
 
@@ -49,7 +54,8 @@ function buildSummary(businesses: Business[]): string {
     "",
     "### Top opportunities",
     ...top3.map(
-      (b, i) => `${i + 1}. **${b.name}** (${b.priority ?? "unscored"}) — opportunity score ${b.opportunity_score ?? "n/a"}`
+      (b, i) =>
+        `${i + 1}. **${b.name}** (${b.priority ?? "unscored"}) — opportunity score ${b.opportunity_score ?? "n/a"}`,
     ),
   ].join("\n");
 }
@@ -63,7 +69,7 @@ async function maybeFinalizeAudit(auditId: number) {
     .prepare(
       `SELECT COUNT(*)::int AS n FROM vis_jobs
        WHERE type = 'audit_business' AND status IN ('pending','running')
-         AND (payload::json->>'audit_id')::bigint = ?`
+         AND (payload::json->>'audit_id')::bigint = ?`,
     )
     .get(auditId)) as { n: number };
   if (remaining.n > 0) return;
@@ -75,10 +81,11 @@ async function maybeFinalizeAudit(auditId: number) {
   const updated = (await db
     .prepare(
       `UPDATE vis_audits SET status='ready', error=NULL, summary_md=?, updated_at=now()::text
-       WHERE id = ? AND status <> 'ready'
-       RETURNING account_id, query`
+       WHERE id = ? AND status = 'running'
+       RETURNING account_id, query`,
     )
-    .get(summary, auditId)) as { account_id: number; query: string } | undefined;
+    .get(summary, auditId)) as
+    { account_id: number; query: string } | undefined;
 
   // Only log once, on the actual pending->ready transition — this UPDATE is a
   // harmless no-op on repeat calls (two audit_business completions racing to
@@ -89,7 +96,7 @@ async function maybeFinalizeAudit(auditId: number) {
         `SELECT SUM(COALESCE((result::json->>'estimated_cost_usd')::numeric, 0)) AS cost
          FROM vis_jobs
          WHERE type IN ('run_audit','audit_business') AND result LIKE '{%'
-           AND (payload::json->>'audit_id')::bigint = ?`
+           AND (payload::json->>'audit_id')::bigint = ?`,
       )
       .get(auditId)) as { cost: string | null };
     await logAuditEvent(
@@ -97,92 +104,154 @@ async function maybeFinalizeAudit(auditId: number) {
       "audit_completed",
       `Audit "${updated.query}" completed — ${businesses.length} businesses audited`,
       null,
-      Number(cost) || 0
+      Number(cost) || 0,
     );
   }
+}
+
+async function beginJob(
+  job: JobRow,
+  update: (tx: Db) => Promise<void>,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const row = await tx
+      .prepare(
+        "SELECT status, attempts, account_id FROM vis_jobs WHERE id = ? FOR UPDATE",
+      )
+      .get(job.id);
+    if (
+      !row ||
+      row.status !== "running" ||
+      row.attempts !== job.attempts ||
+      row.account_id !== job.account_id
+    )
+      return false;
+    await update(tx);
+    return true;
+  });
 }
 
 async function processRunAudit(job: JobRow) {
   const payload = JSON.parse(job.payload || "{}");
   const auditId = Number(payload.audit_id);
-  if (!auditId) throw new Error(`run_audit job ${job.id} has no audit_id in its payload`);
+  if (!auditId)
+    throw new Error(`run_audit job ${job.id} has no audit_id in its payload`);
 
-  await db
-    .prepare("UPDATE vis_audits SET status='running', error=NULL, updated_at=now()::text WHERE id = ?")
-    .run(auditId);
-
-  const { candidates, searchCallCount, estimatedCostUsd } = await discoverCandidates(auditId);
-
-  if (!candidates.length) {
-    const message = "No candidate businesses found for this niche + location";
-    await db
-      .prepare("UPDATE vis_audits SET status='error', error=?, updated_at=now()::text WHERE id = ?")
-      .run(message, auditId);
-    await markDone(job.id, message);
+  if (
+    !(await beginJob(job, async (tx) => {
+      const owned = await tx
+        .prepare("SELECT id FROM vis_audits WHERE id = ? AND account_id = ?")
+        .get(auditId, job.account_id);
+      if (!owned) throw new Error("Audit does not belong to this account");
+      await tx
+        .prepare(
+          "UPDATE vis_audits SET status='running', error=NULL, updated_at=now()::text WHERE id = ?",
+        )
+        .run(auditId);
+    }))
+  )
     return;
-  }
 
-  await db.transaction(async (tx) => {
-    for (const c of candidates) {
-      await tx.prepare("INSERT INTO vis_jobs (type, payload) VALUES ('audit_business', ?)").run(
-        JSON.stringify({ audit_id: auditId, name: c.name, website: c.website ?? null })
-      );
-    }
-  });
+  const { candidates, searchCallCount, estimatedCostUsd } =
+    await discoverCandidates(auditId);
 
-  await markDone(
-    job.id,
-    JSON.stringify({ search_call_count: searchCallCount, candidates: candidates.length, estimated_cost_usd: estimatedCostUsd })
+  await finishJob(
+    db,
+    job,
+    {
+      search_call_count: searchCallCount,
+      candidates: candidates.length,
+      estimated_cost_usd: estimatedCostUsd,
+    },
+    async (tx) => {
+      if (!candidates.length) {
+        await tx
+          .prepare(
+            "UPDATE vis_audits SET status='error', error=?, updated_at=now()::text WHERE id = ? AND account_id = ?",
+          )
+          .run(
+            "No candidate businesses found for this niche + location",
+            auditId,
+            job.account_id,
+          );
+        return;
+      }
+      for (const c of candidates) {
+        await tx
+          .prepare(
+            "INSERT INTO vis_jobs (type, payload, reserved_usd) VALUES ('audit_business', ?, 1)",
+          )
+          .run(
+            JSON.stringify({
+              audit_id: auditId,
+              name: c.name,
+              website: c.website ?? null,
+              parent_job_id: job.id,
+            }),
+          );
+      }
+    },
   );
-  await deductCredits(job.account_id, estimatedCostUsd, `run_audit:${job.id}`);
 }
 
 async function processAuditBusiness(job: JobRow) {
   const payload = JSON.parse(job.payload || "{}");
   const auditId = Number(payload.audit_id);
-  if (!auditId) throw new Error(`audit_business job ${job.id} has no audit_id in its payload`);
+  if (!auditId)
+    throw new Error(
+      `audit_business job ${job.id} has no audit_id in its payload`,
+    );
 
-  const { businessId, created, searchCallCount, estimatedCostUsd } = await runAuditBusiness({
+  const audit = await db
+    .prepare("SELECT id FROM vis_audits WHERE id=? AND account_id=?")
+    .get(auditId, job.account_id);
+  if (!audit) throw new Error("Audit does not belong to this account");
+  const { meta, searchCallCount, estimatedCostUsd } = await runAuditBusiness({
     audit_id: auditId,
     name: payload.name,
     website: payload.website ?? null,
   });
 
-  await markDone(
-    job.id,
-    JSON.stringify({
-      business_id: businessId,
-      created,
-      search_call_count: searchCallCount,
-      estimated_cost_usd: estimatedCostUsd,
-    })
-  );
-  await deductCredits(job.account_id, estimatedCostUsd, `audit_business:${job.id}`);
-  await maybeFinalizeAudit(auditId);
+  const result = {
+    business_id: 0,
+    created: false,
+    search_call_count: searchCallCount,
+    estimated_cost_usd: estimatedCostUsd,
+  };
+  const completed = await finishJob(db, job, result, async (tx) => {
+    const saved = await upsertBusinessInTransaction(auditId, meta, tx);
+    result.business_id = saved.id;
+    result.created = saved.created;
+  });
+  if (!completed) return;
+  try {
+    await maybeFinalizeAudit(auditId);
+  } catch {
+    console.error("Audit finalization needs retry", { auditId });
+  }
 }
 
-// vis_jobs rows are insertable by any authenticated tenant member (RLS
-// allows it, and the anon key is public, so this includes direct PostgREST
-// calls that never go through app/api/*). The insert trigger derives
-// job.account_id from payload.audit_id only — nothing checks that
-// payload.campaign_business_id belongs to that same account. The worker runs
-// on serviceDb (no RLS), so without this check a tenant could point a job at
-// another tenant's campaign business and have the engine read that tenant's
-// business data into, or write a booking link onto, a row it doesn't own.
-async function assertCampaignBusinessOwnedBy(campaignBusinessId: number, accountId: number) {
+// Recheck ownership before service-role campaign processing.
+async function assertCampaignBusinessOwnedBy(
+  campaignBusinessId: number,
+  accountId: number,
+) {
   const row = (await db
     .prepare(
       `SELECT cb.account_id AS cb_account, b.account_id AS b_account
        FROM vis_campaign_businesses cb JOIN vis_businesses b ON b.id = cb.business_id
-       WHERE cb.id = ?`
+       WHERE cb.id = ?`,
     )
-    .get(campaignBusinessId)) as { cb_account: number; b_account: number } | undefined;
+    .get(campaignBusinessId)) as
+    { cb_account: number; b_account: number } | undefined;
   if (
     !row ||
     Number(row.cb_account) !== Number(accountId) ||
     Number(row.b_account) !== Number(accountId)
   ) {
-    throw new Error(`campaign business ${campaignBusinessId} does not belong to account ${accountId}`);
+    throw new Error(
+      `campaign business ${campaignBusinessId} does not belong to account ${accountId}`,
+    );
   }
 }
 
@@ -190,33 +259,48 @@ async function processBuildRedesign(job: JobRow) {
   const payload = JSON.parse(job.payload || "{}");
   const campaignBusinessId = Number(payload.campaign_business_id);
   if (!campaignBusinessId) {
-    throw new Error(`build_redesign job ${job.id} has no campaign_business_id in its payload`);
+    throw new Error(
+      `build_redesign job ${job.id} has no campaign_business_id in its payload`,
+    );
   }
   await assertCampaignBusinessOwnedBy(campaignBusinessId, job.account_id);
 
-  await db
-    .prepare(
-      "UPDATE vis_campaign_businesses SET redesign_status='running', redesign_error=NULL, updated_at=now()::text WHERE id = ?"
-    )
-    .run(campaignBusinessId);
+  if (
+    !(await beginJob(job, async (tx) => {
+      await tx
+        .prepare(
+          "UPDATE vis_campaign_businesses SET redesign_status='running', redesign_error=NULL, updated_at=now()::text WHERE id = ?",
+        )
+        .run(campaignBusinessId);
+    }))
+  )
+    return;
 
   const { html, estimatedCostUsd } = await generateRedesign(campaignBusinessId);
 
-  await db
-    .prepare(
-      "UPDATE vis_campaign_businesses SET redesign_status='ready', redesign_error=NULL, redesign_html=?, updated_at=now()::text WHERE id = ?"
-    )
-    .run(html, campaignBusinessId);
-  await markDone(job.id, JSON.stringify({ estimated_cost_usd: estimatedCostUsd }));
-  await deductCredits(job.account_id, estimatedCostUsd, `build_redesign:${job.id}`);
+  const completed = await finishJob(
+    db,
+    job,
+    { estimated_cost_usd: estimatedCostUsd },
+    async (tx) => {
+      await tx
+        .prepare(
+          "UPDATE vis_campaign_businesses SET redesign_status='ready', redesign_error=NULL, redesign_html=?, updated_at=now()::text WHERE id = ?",
+        )
+        .run(html, campaignBusinessId);
+    },
+  );
 
-  const businessName = await campaignBusinessName(campaignBusinessId);
+  if (!completed) return;
+  const businessName = await campaignBusinessName(campaignBusinessId).catch(
+    () => `campaign business ${campaignBusinessId}`,
+  );
   await logAuditEvent(
     job.account_id,
     "redesign_built",
     `Redesign mockup built for "${businessName}"`,
     null,
-    estimatedCostUsd
+    estimatedCostUsd,
   );
 }
 
@@ -224,42 +308,60 @@ async function processCreateBookingLink(job: JobRow) {
   const payload = JSON.parse(job.payload || "{}");
   const campaignBusinessId = Number(payload.campaign_business_id);
   if (!campaignBusinessId) {
-    throw new Error(`create_booking_link job ${job.id} has no campaign_business_id in its payload`);
+    throw new Error(
+      `create_booking_link job ${job.id} has no campaign_business_id in its payload`,
+    );
   }
   await assertCampaignBusinessOwnedBy(campaignBusinessId, job.account_id);
 
-  await db
-    .prepare(
-      "UPDATE vis_campaign_businesses SET booking_status='running', booking_error=NULL, updated_at=now()::text WHERE id = ?"
-    )
-    .run(campaignBusinessId);
+  if (
+    !(await beginJob(job, async (tx) => {
+      await tx
+        .prepare(
+          "UPDATE vis_campaign_businesses SET booking_status='running', booking_error=NULL, updated_at=now()::text WHERE id = ?",
+        )
+        .run(campaignBusinessId);
+    }))
+  )
+    return;
 
-  const { bookingLink, eventTypeName, estimatedCostUsd } = await createBookingLink(job.account_id);
+  const { bookingLink, eventTypeName, estimatedCostUsd } =
+    await createBookingLink(job.account_id);
 
-  await db
-    .prepare(
-      "UPDATE vis_campaign_businesses SET booking_status='ready', booking_error=NULL, booking_link=?, booking_event_type=?, updated_at=now()::text WHERE id = ?"
-    )
-    .run(bookingLink, eventTypeName, campaignBusinessId);
-  await markDone(job.id, JSON.stringify({ estimated_cost_usd: estimatedCostUsd }));
-  await deductCredits(job.account_id, estimatedCostUsd, `create_booking_link:${job.id}`);
+  const completed = await finishJob(
+    db,
+    job,
+    { estimated_cost_usd: estimatedCostUsd },
+    async (tx) => {
+      await tx
+        .prepare(
+          "UPDATE vis_campaign_businesses SET booking_status='ready', booking_error=NULL, booking_link=?, booking_event_type=?, updated_at=now()::text WHERE id = ?",
+        )
+        .run(bookingLink, eventTypeName, campaignBusinessId);
+    },
+  );
 
-  const businessName = await campaignBusinessName(campaignBusinessId);
+  if (!completed) return;
+  const businessName = await campaignBusinessName(campaignBusinessId).catch(
+    () => `campaign business ${campaignBusinessId}`,
+  );
   await logAuditEvent(
     job.account_id,
     "booking_link_created",
     `Booking link created for "${businessName}"`,
     null,
-    estimatedCostUsd
+    estimatedCostUsd,
   );
 }
 
-async function campaignBusinessName(campaignBusinessId: number): Promise<string> {
+async function campaignBusinessName(
+  campaignBusinessId: number,
+): Promise<string> {
   const row = (await db
     .prepare(
       `SELECT b.name FROM vis_businesses b
        JOIN vis_campaign_businesses cb ON cb.business_id = b.id
-       WHERE cb.id = ?`
+       WHERE cb.id = ?`,
     )
     .get(campaignBusinessId)) as { name: string } | undefined;
   return row?.name ?? `campaign business ${campaignBusinessId}`;
@@ -276,40 +378,59 @@ async function failJob(job: JobRow, message: string) {
   const auditId = Number(payload.audit_id) || null;
   const campaignBusinessId = Number(payload.campaign_business_id) || null;
 
-  if (job.attempts >= MAX_ATTEMPTS) {
-    await db
-      .prepare("UPDATE vis_jobs SET status='error', result=?, updated_at=now()::text WHERE id = ?")
-      .run(message, job.id);
-    if (job.type === "run_audit" && auditId) {
-      await db
-        .prepare("UPDATE vis_audits SET status='error', error=?, updated_at=now()::text WHERE id = ?")
-        .run(message, auditId);
-    }
-    // A single business permanently failing shouldn't fail the whole audit —
-    // just drop it and let the rest finish; still need to check finalization.
-    if (job.type === "audit_business" && auditId) {
-      await maybeFinalizeAudit(auditId);
-    }
-    if (job.type === "build_redesign" && campaignBusinessId) {
-      await db
+  await db.transaction(async (tx) => {
+    const current = await tx
+      .prepare("SELECT status, attempts FROM vis_jobs WHERE id = ? FOR UPDATE")
+      .get(job.id);
+    if (
+      !current ||
+      current.status !== "running" ||
+      current.attempts !== job.attempts
+    )
+      return;
+    if (job.attempts >= MAX_ATTEMPTS) {
+      await tx
         .prepare(
-          "UPDATE vis_campaign_businesses SET redesign_status='error', redesign_error=?, updated_at=now()::text WHERE id = ? AND account_id = ?"
+          "UPDATE vis_jobs SET status='error', reserved_usd=0, result=?, updated_at=now()::text WHERE id = ? AND status='running' AND attempts = ?",
         )
-        .run(message, campaignBusinessId, job.account_id);
-    }
-    if (job.type === "create_booking_link" && campaignBusinessId) {
-      await db
+        .run(message, job.id, job.attempts);
+      if (job.type === "run_audit" && auditId) {
+        await tx
+          .prepare(
+            "UPDATE vis_audits SET status='error', error=?, updated_at=now()::text WHERE id = ?",
+          )
+          .run(message, auditId);
+      }
+      // A single business permanently failing shouldn't fail the whole audit —
+      // just drop it and let the rest finish; still need to check finalization.
+      if (job.type === "audit_business" && auditId) {
+        // Finalize after committing failure status.
+      }
+      if (job.type === "build_redesign" && campaignBusinessId) {
+        await tx
+          .prepare(
+            "UPDATE vis_campaign_businesses SET redesign_status='error', redesign_error=?, updated_at=now()::text WHERE id = ? AND account_id = ?",
+          )
+          .run(message, campaignBusinessId, job.account_id);
+      }
+      if (job.type === "create_booking_link" && campaignBusinessId) {
+        await tx
+          .prepare(
+            "UPDATE vis_campaign_businesses SET booking_status='error', booking_error=?, updated_at=now()::text WHERE id = ? AND account_id = ?",
+          )
+          .run(message, campaignBusinessId, job.account_id);
+      }
+    } else {
+      // Leave pending (not running) so the natural claim_job() path retries it.
+      await tx
         .prepare(
-          "UPDATE vis_campaign_businesses SET booking_status='error', booking_error=?, updated_at=now()::text WHERE id = ? AND account_id = ?"
+          "UPDATE vis_jobs SET status='pending', result=?, updated_at=now()::text WHERE id = ? AND status='running' AND attempts = ?",
         )
-        .run(message, campaignBusinessId, job.account_id);
+        .run(message, job.id, job.attempts);
     }
-  } else {
-    // Leave pending (not running) so the natural claim_job() path retries it.
-    await db
-      .prepare("UPDATE vis_jobs SET status='pending', result=?, updated_at=now()::text WHERE id = ?")
-      .run(message, job.id);
-  }
+  });
+  if (job.type === "audit_business" && auditId && job.attempts >= MAX_ATTEMPTS)
+    await maybeFinalizeAudit(auditId);
 }
 
 // Deliberately processes at most one job per invocation, not a loop. A
@@ -324,6 +445,20 @@ async function failJob(job: JobRow, message: string) {
 // separate invocations, not from looping within one. The pg_cron backstop
 // drains anything left pending/stale the same way.
 export async function runWorkerLoop(): Promise<{ processed: number }> {
+  const unfinished = await db
+    .prepare(
+      `SELECT id FROM vis_audits a WHERE status = 'running'
+    AND EXISTS (SELECT 1 FROM vis_jobs j WHERE (j.payload::json->>'audit_id')::bigint = a.id AND j.type = 'audit_business')
+    AND NOT EXISTS (SELECT 1 FROM vis_jobs j WHERE (j.payload::json->>'audit_id')::bigint = a.id AND j.status IN ('pending','running')) LIMIT 10`,
+    )
+    .all();
+  for (const audit of unfinished) {
+    try {
+      await maybeFinalizeAudit(audit.id);
+    } catch {
+      console.error("Audit finalization failed", { auditId: audit.id });
+    }
+  }
   const job = await claimJob();
   if (!job) return { processed: 0 };
 

@@ -1,3 +1,4 @@
+import { csvCell as cell } from "./csv-cell";
 import defaultDb, { type Db } from "./db";
 import type { Audit, Business } from "./shared";
 import { PRIORITY_ORDER } from "./shared";
@@ -34,21 +35,16 @@ export const CSV_HEADERS = [
   "Status",
 ];
 
-function cell(v: unknown): string {
-  const s = v == null ? "" : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
 // Shared by app/api/audits/[id]/csv/route.ts (browser download, impersonated
 // `db` by default) and scripts/engine.ts (CLI context, no browser session —
 // pass `serviceDb` explicitly) so the schema only lives in one place.
 export async function buildAuditCsv(
   auditId: number,
-  database: Db = defaultDb
+  database: Db = defaultDb,
 ): Promise<{ csv: string; audit: Audit } | null> {
-  const audit = (await database.prepare("SELECT * FROM vis_audits WHERE id = ?").get(auditId)) as
-    | Audit
-    | undefined;
+  const audit = (await database
+    .prepare("SELECT * FROM vis_audits WHERE id = ?")
+    .get(auditId)) as Audit | undefined;
   if (!audit) return null;
 
   const businesses = (await database
@@ -56,8 +52,9 @@ export async function buildAuditCsv(
     .all(auditId)) as Business[];
   businesses.sort(
     (a, b) =>
-      (PRIORITY_ORDER[a.priority ?? ""] ?? 3) - (PRIORITY_ORDER[b.priority ?? ""] ?? 3) ||
-      (b.opportunity_score ?? 0) - (a.opportunity_score ?? 0)
+      (PRIORITY_ORDER[a.priority ?? ""] ?? 3) -
+        (PRIORITY_ORDER[b.priority ?? ""] ?? 3) ||
+      (b.opportunity_score ?? 0) - (a.opportunity_score ?? 0),
   );
 
   const rows = businesses.map((b) => {

@@ -7,10 +7,14 @@ import DeleteCampaignButton from "@/components/DeleteCampaignButton";
 
 export const dynamic = "force-dynamic";
 
-export default async function CampaignPage({ params }: { params: { id: string } }) {
+export default async function CampaignPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const campaign = (await db
     .prepare("SELECT * FROM vis_campaigns WHERE id = ?")
-    .get(Number(params.id))) as Campaign | undefined;
+    .get(Number((await params).id))) as Campaign | undefined;
   if (!campaign) notFound();
 
   const audit = (await db
@@ -28,7 +32,7 @@ export default async function CampaignPage({ params }: { params: { id: string } 
        FROM vis_campaign_businesses cb
        JOIN vis_businesses b ON b.id = cb.business_id
        WHERE cb.campaign_id = ?
-       ORDER BY cb.id`
+       ORDER BY cb.id`,
     )
     .all(campaign.id)) as CampaignBusinessRow[];
 
@@ -37,7 +41,7 @@ export default async function CampaignPage({ params }: { params: { id: string } 
       r.redesign_status === "pending" ||
       r.redesign_status === "running" ||
       r.booking_status === "pending" ||
-      r.booking_status === "running"
+      r.booking_status === "running",
   );
 
   return (
@@ -45,21 +49,30 @@ export default async function CampaignPage({ params }: { params: { id: string } 
       {inFlight && <AutoRefresh />}
       <div className="flex items-start justify-between gap-4 mb-1">
         <div>
-          <Link href="/app/campaigns" className="text-xs text-slate-500 hover:text-slate-300">
+          <Link
+            href="/app/campaigns"
+            className="text-xs text-slate-500 hover:text-slate-300"
+          >
             ← All campaigns
           </Link>
-          <h1 className="text-2xl font-bold text-slate-100 mt-1">{campaign.name}</h1>
+          <h1 className="text-2xl font-bold text-slate-100 mt-1">
+            {campaign.name}
+          </h1>
           <div className="text-xs text-slate-500 mt-1">
             {audit && (
               <>
                 from{" "}
-                <Link href={`/app/audit/${audit.id}`} className="hover:text-slate-300">
+                <Link
+                  href={`/app/audit/${audit.id}`}
+                  className="hover:text-slate-300"
+                >
                   &ldquo;{audit.query}&rdquo;
                 </Link>{" "}
                 ·{" "}
               </>
             )}
-            {rows.length} businesses · created {campaign.created_at.slice(0, 10)}
+            {rows.length} businesses · created{" "}
+            {campaign.created_at.slice(0, 10)}
           </div>
         </div>
         <DeleteCampaignButton campaignId={campaign.id} />
@@ -67,8 +80,8 @@ export default async function CampaignPage({ params }: { params: { id: string } 
 
       {inFlight && (
         <div className="mt-4 card p-3 text-sm text-slate-400">
-          The engine is generating redesign mockups and booking links automatically — this page
-          refreshes as they land.
+          The engine is generating redesign mockups and booking links
+          automatically — this page refreshes as they land.
         </div>
       )}
 

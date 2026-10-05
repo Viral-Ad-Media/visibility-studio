@@ -1,21 +1,29 @@
 "use client";
+import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ACCESS_FEE_USD, CREDIT_PACKS, formatUsd } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "@/components/ui/card";
 import { Wallet } from "lucide-react";
 
 async function startCheckout(body: object) {
-  const res = await fetch("/api/billing/checkout", {
+  const res = await apiFetch("/api/billing/checkout", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (data.url) window.location.href = data.url;
+  if (!data.url)
+    throw new Error("Checkout did not return a URL. Please try again.");
+  window.location.href = data.url;
 }
 
 export function BuyAccessButton() {
@@ -27,7 +35,15 @@ export function BuyAccessButton() {
       disabled={busy}
       onClick={async () => {
         setBusy(true);
-        await startCheckout({ type: "access" });
+        try {
+          await startCheckout({ type: "access" });
+        } catch (error) {
+          window.alert(
+            error instanceof Error ? error.message : "Checkout failed",
+          );
+        } finally {
+          setBusy(false);
+        }
       }}
     >
       {busy ? "Redirecting…" : `Unlock — ${formatUsd(ACCESS_FEE_USD)} one-time`}
@@ -48,17 +64,29 @@ export function StartTrialButton() {
         variant="outline"
         disabled={busy}
         onClick={async () => {
-          setBusy(true);
-          setError(null);
-          const res = await fetch("/api/billing/start-trial", { method: "POST" });
-          setBusy(false);
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            setError(body.error ?? "Couldn't start the trial");
-            return;
+          try {
+            setBusy(true);
+            setError(null);
+            const res = await apiFetch("/api/billing/start-trial", {
+              method: "POST",
+            });
+            setBusy(false);
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              setError(body.error ?? "Couldn't start the trial");
+              return;
+            }
+            router.push("/app");
+            router.refresh();
+          } catch (error) {
+            window.alert(
+              error instanceof Error
+                ? error.message
+                : "Operation failed. Please try again.",
+            );
+          } finally {
+            setBusy(false);
           }
-          router.push("/app");
-          router.refresh();
         }}
       >
         {busy ? "Starting…" : "Start free trial"}
@@ -83,7 +111,9 @@ export function BuyCreditsGrid() {
             </Badge>
           </CardHeader>
           <CardContent className="pt-0">
-            <span className="text-2xl font-bold text-foreground">{pack.label}</span>
+            <span className="text-2xl font-bold text-foreground">
+              {pack.label}
+            </span>
           </CardContent>
           <CardFooter>
             <Button
@@ -92,7 +122,18 @@ export function BuyCreditsGrid() {
               disabled={busy !== null}
               onClick={async () => {
                 setBusy(pack.amountUsd);
-                await startCheckout({ type: "credits", amountUsd: pack.amountUsd });
+                try {
+                  await startCheckout({
+                    type: "credits",
+                    amountUsd: pack.amountUsd,
+                  });
+                } catch (error) {
+                  window.alert(
+                    error instanceof Error ? error.message : "Checkout failed",
+                  );
+                } finally {
+                  setBusy(null);
+                }
               }}
             >
               {busy === pack.amountUsd ? "Redirecting…" : "Add"}

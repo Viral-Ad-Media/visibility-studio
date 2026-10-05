@@ -16,14 +16,26 @@ function CopyField({ value, label }: { value: string; label: string }) {
           className="flex-1 bg-ink-800 border border-ink-700 rounded-lg text-sm text-slate-300 px-3 py-2 focus:outline-none"
         />
         <button
-          onClick={() => {
-            navigator.clipboard.writeText(value);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(value);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            } catch (error) {
+              window.alert(
+                error instanceof Error
+                  ? error.message
+                  : "Operation failed. Please try again.",
+              );
+            }
           }}
           className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-3 py-2 rounded-lg shrink-0"
         >
-          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? (
+            <Check className="w-3.5 h-3.5 text-emerald-400" />
+          ) : (
+            <Copy className="w-3.5 h-3.5" />
+          )}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
@@ -31,7 +43,13 @@ function CopyField({ value, label }: { value: string; label: string }) {
   );
 }
 
-export default function ReferralLinkCard({ link, code }: { link: string; code: string }) {
+export default function ReferralLinkCard({
+  link,
+  code,
+}: {
+  link: string;
+  code: string;
+}) {
   return (
     <div className="card p-5 space-y-4">
       <CopyField value={link} label="Your referral link" />

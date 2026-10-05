@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // which have zero auth checks of their own by design — this is the single
 // place that gates them). Marketing pages under /(marketing) and the
 // /(auth) pages themselves are untouched (not matched below).
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // The automated-engine webhook is called by Supabase (pg_net trigger + a
   // pg_cron backstop), never by a logged-in browser — there's no Supabase
   // session to check. It has its own shared-secret check (see the route).
@@ -28,13 +28,23 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        setAll(
+          cookiesToSet: {
+            name: string;
+            value: string;
+            options: CookieOptions;
+          }[],
+        ) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
+          );
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options),
+          );
         },
       },
-    }
+    },
   );
 
   // Also refreshes the session cookie if it's near expiry — must be called

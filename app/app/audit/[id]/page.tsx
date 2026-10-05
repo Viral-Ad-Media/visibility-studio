@@ -30,10 +30,14 @@ const STATUS_STYLES: Record<string, string> = {
   error: "bg-red-500/10 text-red-400 border-red-500/30",
 };
 
-export default async function AuditPage({ params }: { params: { id: string } }) {
+export default async function AuditPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const audit = (await db
     .prepare("SELECT * FROM vis_audits WHERE id = ?")
-    .get(Number(params.id))) as Audit | undefined;
+    .get(Number((await params).id))) as Audit | undefined;
   if (!audit) notFound();
 
   const businesses = (
@@ -42,11 +46,14 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
       .all(audit.id)) as Business[]
   ).sort(
     (a, b) =>
-      (PRIORITY_ORDER[a.priority ?? ""] ?? 3) - (PRIORITY_ORDER[b.priority ?? ""] ?? 3) ||
-      (b.opportunity_score ?? 0) - (a.opportunity_score ?? 0)
+      (PRIORITY_ORDER[a.priority ?? ""] ?? 3) -
+        (PRIORITY_ORDER[b.priority ?? ""] ?? 3) ||
+      (b.opportunity_score ?? 0) - (a.opportunity_score ?? 0),
   );
 
-  const emailsFound = businesses.filter((b) => b.email && b.email !== "not found").length;
+  const emailsFound = businesses.filter(
+    (b) => b.email && b.email !== "not found",
+  ).length;
   const outreachCount = businesses.filter((b) => b.outreach_email).length;
   const inProgress = audit.status === "queued" || audit.status === "running";
 
@@ -55,22 +62,31 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
       {inProgress && <AutoRefresh />}
       <div className="flex items-start justify-between gap-4 mb-1">
         <div>
-          <Link href="/app" className="text-xs text-slate-500 hover:text-slate-300">
+          <Link
+            href="/app"
+            className="text-xs text-slate-500 hover:text-slate-300"
+          >
             ← All audits
           </Link>
-          <h1 className="text-2xl font-bold text-slate-100 mt-1">{audit.query}</h1>
+          <h1 className="text-2xl font-bold text-slate-100 mt-1">
+            {audit.query}
+          </h1>
           <div className="text-xs text-slate-500 mt-1">
-            target {audit.target_count} businesses · created {audit.created_at.slice(0, 10)}
+            target {audit.target_count} businesses · created{" "}
+            {audit.created_at.slice(0, 10)}
             {businesses.length > 0 && (
               <>
-                {" "}· {businesses.length} audited · {emailsFound} emails found · {outreachCount}{" "}
-                outreach drafts
+                {" "}
+                · {businesses.length} audited · {emailsFound} emails found ·{" "}
+                {outreachCount} outreach drafts
               </>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className={`text-xs px-2.5 py-1 rounded-full border ${STATUS_STYLES[audit.status]}`}>
+          <span
+            className={`text-xs px-2.5 py-1 rounded-full border ${STATUS_STYLES[audit.status]}`}
+          >
             {audit.status}
           </span>
           {businesses.length > 0 && (
@@ -105,16 +121,16 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
       )}
 
       {audit.status === "error" && audit.error && (
-        <div className="mt-4 card border-red-500/30 p-4 text-sm text-red-400">{audit.error}</div>
+        <div className="mt-4 card border-red-500/30 p-4 text-sm text-red-400">
+          {audit.error}
+        </div>
       )}
 
       {inProgress && businesses.length === 0 && (
         <div className="mt-6 card p-10 text-center text-slate-400 text-sm">
-          {audit.status === "queued" ? (
-            "Waiting for the engine to pick this up — starts automatically, usually within a minute."
-          ) : (
-            "The engine is researching businesses… results appear here as each audit lands."
-          )}
+          {audit.status === "queued"
+            ? "Waiting for the engine to pick this up — starts automatically, usually within a minute."
+            : "The engine is researching businesses… results appear here as each audit lands."}
         </div>
       )}
 
@@ -125,7 +141,9 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
           </h2>
           <div
             className="markdown text-sm"
-            dangerouslySetInnerHTML={{ __html: marked.parse(escapeHtml(audit.summary_md)) as string }}
+            dangerouslySetInnerHTML={{
+              __html: marked.parse(escapeHtml(audit.summary_md)) as string,
+            }}
           />
         </div>
       )}

@@ -1,10 +1,18 @@
+import Pagination from "@/components/Pagination";
+import { PAGE_SIZE, pageNumber } from "@/lib/pagination";
 import { Send } from "lucide-react";
 import db, { Contact } from "@/lib/db";
 import EmailQueue from "@/components/EmailQueue";
 
 export const dynamic = "force-dynamic";
 
-export default async function EmailsPage() {
+export default async function EmailsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = pageNumber((await searchParams).page);
+  const offset = (page - 1) * PAGE_SIZE;
   // Same shape as Contacts, narrowed to businesses with an actual drafted
   // outreach email — those are the only ones there's anything to send.
   const contacts = (await db
@@ -20,9 +28,11 @@ export default async function EmailsPage() {
        LEFT JOIN vis_campaigns c ON c.id = cb.campaign_id
        WHERE b.email IS NOT NULL AND b.email != 'not found'
          AND b.outreach_email IS NOT NULL
-       ORDER BY b.id DESC, cb.id DESC`
+       ORDER BY b.id DESC, cb.id DESC LIMIT 51 OFFSET ?`,
     )
-    .all()) as Contact[];
+    .all(offset)) as Contact[];
+  const hasMore = contacts.length > PAGE_SIZE;
+  contacts.splice(PAGE_SIZE);
 
   return (
     <div>
@@ -30,8 +40,9 @@ export default async function EmailsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-100">Emails</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Bulk outreach queue — select contacts with a drafted email, then copy or open each
-            one in your own mail client. Sending always stays a manual, human step.
+            Bulk outreach queue — select contacts with a drafted email, then
+            copy or open each one in your own mail client. Sending always stays
+            a manual, human step.
           </p>
         </div>
       </div>
@@ -41,14 +52,18 @@ export default async function EmailsPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-ink-700 bg-ink-800">
             <Send className="h-5 w-5 text-indigo-400" />
           </div>
-          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">Nothing to send yet</h2>
+          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">
+            Nothing to send yet
+          </h2>
           <p className="mx-auto max-w-sm text-sm text-slate-400">
-            Contacts show up here once an audit drafts a personalized outreach email for them.
+            Contacts show up here once an audit drafts a personalized outreach
+            email for them.
           </p>
         </div>
       ) : (
         <EmailQueue contacts={contacts} />
       )}
+      <Pagination page={page} hasMore={hasMore} path="/app/emails" />
     </div>
   );
 }
