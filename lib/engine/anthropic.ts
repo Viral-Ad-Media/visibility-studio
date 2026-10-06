@@ -6,7 +6,7 @@ export function getAnthropic(): Anthropic {
   if (!_client) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
-    _client = new Anthropic({ apiKey });
+    _client = new Anthropic({ apiKey, timeout: 110000, maxRetries: 0 });
   }
   return _client;
 }
@@ -18,14 +18,17 @@ export const RESEARCH_TOOLS: Anthropic.Messages.ToolUnion[] = [
   { type: "web_fetch_20260318", name: "web_fetch", max_uses: 8 },
 ];
 
-export function countSearchCalls(content: Anthropic.Messages.ContentBlock[]): number {
-  return content.filter((b) => b.type === "server_tool_use" && b.name === "web_search").length;
+export function countSearchCalls(
+  content: Anthropic.Messages.ContentBlock[],
+): number {
+  return content.filter(
+    (b) => b.type === "server_tool_use" && b.name === "web_search",
+  ).length;
 }
 
-// Introductory Sonnet 5 pricing, per million tokens, in effect through
-// 2026-08-31 — revisit after that date. Cache writes carry the standard
-// ~25% premium over base input; cache reads are billed at ~10% of base
-// input. https://docs.anthropic.com/en/docs/about-claude/pricing
+// Sonnet 5 standard pricing verified 2026-10-05 against the official model
+// reference: https://platform.claude.com/docs/en/models/sonnet-5/overview
+// Recheck provider pricing before changing models.
 const PRICE_PER_MTOK_USD = {
   input: 2.0,
   output: 10.0,

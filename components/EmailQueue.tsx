@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/client-request";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -6,11 +7,16 @@ import { Copy, Check, Mail, ChevronDown, ChevronRight, X } from "lucide-react";
 import type { Contact } from "@/lib/shared";
 
 function draftText(c: Contact): string {
-  return (c.outreach_subject ? `Subject: ${c.outreach_subject}\n\n` : "") + c.outreach_email;
+  return (
+    (c.outreach_subject ? `Subject: ${c.outreach_subject}\n\n` : "") +
+    c.outreach_email
+  );
 }
 
 function mailtoHref(c: Contact): string {
-  const subject = encodeURIComponent(c.outreach_subject ?? `Following up — ${c.name}`);
+  const subject = encodeURIComponent(
+    c.outreach_subject ?? `Following up — ${c.name}`,
+  );
   const body = encodeURIComponent(c.outreach_email ?? "");
   return `mailto:${encodeURIComponent(c.email)}?subject=${subject}&body=${body}`;
 }
@@ -19,15 +25,27 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      onClick={(e) => {
-        e.preventDefault();
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+      onClick={async (e) => {
+        try {
+          e.preventDefault();
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch (error) {
+          window.alert(
+            error instanceof Error
+              ? error.message
+              : "Operation failed. Please try again.",
+          );
+        }
       }}
       className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-2.5 py-1.5 rounded-lg"
     >
-      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? (
+        <Check className="w-3.5 h-3.5 text-emerald-400" />
+      ) : (
+        <Copy className="w-3.5 h-3.5" />
+      )}
       {copied ? "Copied" : label}
     </button>
   );
@@ -78,7 +96,9 @@ function Row({
       </div>
       {open && (
         <div className="border-t border-ink-700 p-4 bg-ink-950">
-          <div className="text-sm text-slate-300 whitespace-pre-wrap">{c.outreach_email}</div>
+          <div className="text-sm text-slate-300 whitespace-pre-wrap">
+            {c.outreach_email}
+          </div>
         </div>
       )}
     </div>
@@ -100,12 +120,16 @@ export default function EmailQueue({ contacts }: { contacts: Contact[] }) {
   }
 
   function toggleAll() {
-    setSelected((prev) => (prev.size === contacts.length ? new Set() : new Set(contacts.map((c) => c.id))));
+    setSelected((prev) =>
+      prev.size === contacts.length
+        ? new Set()
+        : new Set(contacts.map((c) => c.id)),
+    );
   }
 
   const selectedContacts = useMemo(
     () => contacts.filter((c) => selected.has(c.id)),
-    [contacts, selected]
+    [contacts, selected],
   );
 
   const combinedDraft = useMemo(
@@ -113,19 +137,32 @@ export default function EmailQueue({ contacts }: { contacts: Contact[] }) {
       selectedContacts
         .map((c) => `To: ${c.email}\n${draftText(c)}`)
         .join("\n\n" + "-".repeat(40) + "\n\n"),
-    [selectedContacts]
+    [selectedContacts],
   );
 
   async function markContacted() {
-    setBusy(true);
-    await fetch("/api/businesses/bulk-status", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: Array.from(selected), crm_status: "Contacted" }),
-    });
-    setBusy(false);
-    setSelected(new Set());
-    router.refresh();
+    try {
+      setBusy(true);
+      await apiFetch("/api/businesses/bulk-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: Array.from(selected),
+          crm_status: "Contacted",
+        }),
+      });
+      setBusy(false);
+      setSelected(new Set());
+      router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Operation failed. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -144,16 +181,27 @@ export default function EmailQueue({ contacts }: { contacts: Contact[] }) {
 
       <div className="space-y-2 pb-24">
         {contacts.map((c) => (
-          <Row key={c.id} c={c} selected={selected.has(c.id)} onToggle={() => toggle(c.id)} />
+          <Row
+            key={c.id}
+            c={c}
+            selected={selected.has(c.id)}
+            onToggle={() => toggle(c.id)}
+          />
         ))}
       </div>
 
       {selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 card px-5 py-3 flex items-center gap-3 shadow-xl border-indigo-600/40">
+        <div className="fixed bottom-6 max-w-[calc(100vw-2rem)] flex-wrap justify-center left-1/2 -translate-x-1/2 z-40 card px-5 py-3 flex items-center gap-3 shadow-xl border-indigo-600/40">
           <span className="text-sm text-slate-200">
-            <span className="font-semibold text-indigo-400">{selected.size}</span> selected
+            <span className="font-semibold text-indigo-400">
+              {selected.size}
+            </span>{" "}
+            selected
           </span>
-          <CopyButton text={combinedDraft} label={`Copy all ${selected.size}`} />
+          <CopyButton
+            text={combinedDraft}
+            label={`Copy all ${selected.size}`}
+          />
           <button
             disabled={busy}
             onClick={markContacted}

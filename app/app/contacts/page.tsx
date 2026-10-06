@@ -1,10 +1,18 @@
+import Pagination from "@/components/Pagination";
+import { PAGE_SIZE, pageNumber } from "@/lib/pagination";
 import { Users } from "lucide-react";
 import db, { Contact } from "@/lib/db";
 import ContactsTable from "@/components/ContactsTable";
 
 export const dynamic = "force-dynamic";
 
-export default async function ContactsPage() {
+export default async function ContactsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = pageNumber((await searchParams).page);
+  const offset = (page - 1) * PAGE_SIZE;
   // DISTINCT ON collapses to one row per business even if it somehow belongs
   // to more than one campaign — picks the most recently-added membership.
   const contacts = (await db
@@ -19,9 +27,11 @@ export default async function ContactsPage() {
        LEFT JOIN vis_campaign_businesses cb ON cb.business_id = b.id
        LEFT JOIN vis_campaigns c ON c.id = cb.campaign_id
        WHERE b.email IS NOT NULL AND b.email != 'not found'
-       ORDER BY b.id DESC, cb.id DESC`
+       ORDER BY b.id DESC, cb.id DESC LIMIT 51 OFFSET ?`,
     )
-    .all()) as Contact[];
+    .all(offset)) as Contact[];
+  const hasMore = contacts.length > PAGE_SIZE;
+  contacts.splice(PAGE_SIZE);
 
   return (
     <div>
@@ -39,15 +49,18 @@ export default async function ContactsPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-ink-700 bg-ink-800">
             <Users className="h-5 w-5 text-indigo-400" />
           </div>
-          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">No contacts yet</h2>
+          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">
+            No contacts yet
+          </h2>
           <p className="mx-auto max-w-sm text-sm text-slate-400">
-            Contacts appear here automatically once an audit finds a public email for a
-            business — run an audit to get started.
+            Contacts appear here automatically once an audit finds a public
+            email for a business — run an audit to get started.
           </p>
         </div>
       ) : (
         <ContactsTable contacts={contacts} />
       )}
+      <Pagination page={page} hasMore={hasMore} path="/app/contacts" />
     </div>
   );
 }

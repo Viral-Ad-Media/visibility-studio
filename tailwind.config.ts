@@ -10,11 +10,8 @@ import type { Config } from "tailwindcss";
 // theme automatically — ink stays "surface", slate stays "text", whichever
 // theme is active. Don't hardcode hex colors in components, or they won't.
 const config: Config = {
-  darkMode: ["class"],
-  content: [
-    "./app/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-  ],
+  darkMode: "class",
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {

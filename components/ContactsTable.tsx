@@ -1,4 +1,6 @@
 "use client";
+import { apiFetch } from "@/lib/client-request";
+import { csvCell as csvField } from "@/lib/csv-cell";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,13 +15,17 @@ const PRIORITY_STYLES: Record<string, string> = {
   Low: "bg-slate-500/10 text-slate-400 border-slate-500/30",
 };
 
-function csvField(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
-}
-
 function exportCsv(contacts: Contact[]) {
-  const header = ["Name", "Email", "Phone", "Category", "Location", "CRM status", "Campaign", "Audit"];
+  const header = [
+    "Name",
+    "Email",
+    "Phone",
+    "Category",
+    "Location",
+    "CRM status",
+    "Campaign",
+    "Audit",
+  ];
   const rows = contacts.map((c) => [
     csvField(c.name),
     csvField(c.email),
@@ -44,15 +50,27 @@ function CopyEmailButton({ email }: { email: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      onClick={() => {
-        navigator.clipboard.writeText(email);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(email);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch (error) {
+          window.alert(
+            error instanceof Error
+              ? error.message
+              : "Operation failed. Please try again.",
+          );
+        }
       }}
       className="rounded p-1 text-slate-500 hover:text-slate-200"
       title="Copy email"
     >
-      {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-400" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
     </button>
   );
 }
@@ -62,14 +80,24 @@ function Row({ c }: { c: Contact }) {
   const [saving, setSaving] = useState(false);
 
   async function setStatus(status: string) {
-    setSaving(true);
-    await fetch(`/api/businesses/${c.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ crm_status: status }),
-    });
-    setSaving(false);
-    router.refresh();
+    try {
+      setSaving(true);
+      await apiFetch(`/api/businesses/${c.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crm_status: status }),
+      });
+      setSaving(false);
+      router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Operation failed. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -107,7 +135,12 @@ function Row({ c }: { c: Contact }) {
         )}
       </td>
       <td className="px-2 py-2.5">
-        <StatusSelect value={c.crm_status} options={CRM_STATUSES} disabled={saving} onChange={setStatus} />
+        <StatusSelect
+          value={c.crm_status}
+          options={CRM_STATUSES}
+          disabled={saving}
+          onChange={setStatus}
+        />
       </td>
     </tr>
   );
@@ -122,7 +155,7 @@ export default function ContactsTable({ contacts }: { contacts: Contact[] }) {
     return contacts.filter((c) =>
       [c.name, c.email, c.category, c.location, c.campaign_name, c.audit_query]
         .filter(Boolean)
-        .some((f) => f!.toLowerCase().includes(q))
+        .some((f) => f!.toLowerCase().includes(q)),
     );
   }, [contacts, query]);
 

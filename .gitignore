@@ -21,3 +21,6 @@ tsconfig.tsbuildinfo
 # Trigger.dev CLI runtime cache (Phase B used this, then got dropped for a
 # pg_net/pg_cron-based engine instead — never track this if it reappears)
 .trigger/
+
+# Supabase CLI-generated metadata
+/supabase/.temp/

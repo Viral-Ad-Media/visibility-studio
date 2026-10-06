@@ -1,6 +1,15 @@
+import Pagination from "@/components/Pagination";
+import { pageNumber, PAGE_SIZE } from "@/lib/pagination";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ShieldAlert, Users, Rocket, DollarSign, AlertTriangle, Clock } from "lucide-react";
+import {
+  ShieldAlert,
+  Users,
+  Rocket,
+  DollarSign,
+  AlertTriangle,
+  Clock,
+} from "lucide-react";
 import { supabaseServerClient } from "@/lib/supabase-server";
 import db, { getCurrentAccountId, serviceDb } from "@/lib/db";
 import { logout } from "@/app/(auth)/actions";
@@ -42,17 +51,21 @@ type ErroredJob = {
   account_name: string;
 };
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = pageNumber((await searchParams).page);
   const {
     data: { user },
-  } = await supabaseServerClient().auth.getUser();
+  } = await (await supabaseServerClient()).auth.getUser();
   if (!user) redirect("/login");
 
-  const accountId = await getCurrentAccountId();
-  const self = (await db
-    .prepare("SELECT is_platform_admin FROM vis_accounts WHERE id = ?")
-    .get(accountId)) as { is_platform_admin: boolean };
-  if (!self?.is_platform_admin) redirect("/app");
+  const self = await serviceDb
+    .prepare("SELECT user_id FROM vis_platform_admins WHERE user_id = ?")
+    .get(user.id);
+  if (!self) redirect("/app");
 
   // Cross-tenant reads — serviceDb bypasses RLS on purpose, same trust
   // boundary as the Team feature's auth.users join.
@@ -67,7 +80,7 @@ export default async function AdminPage() {
           (SELECT count(*) FROM vis_jobs WHERE status = 'running') AS jobs_running,
           (SELECT count(*) FROM vis_jobs WHERE status = 'error') AS jobs_error,
           (SELECT COALESCE(SUM(delta_usd), 0) FROM vis_credits_ledger) AS total_credit_balance,
-          (SELECT COALESCE(SUM((result::json->>'estimated_cost_usd')::numeric), 0) FROM vis_jobs WHERE result LIKE '{%') AS total_estimated_spend`
+          (SELECT COALESCE(SUM((result::json->>'estimated_cost_usd')::numeric), 0) FROM vis_jobs WHERE result LIKE '{%') AS total_estimated_spend`,
       )
       .get() as Promise<Stats>,
     serviceDb
@@ -78,9 +91,9 @@ export default async function AdminPage() {
                 (SELECT count(*) FROM vis_campaigns WHERE account_id = a.id) AS campaign_count,
                 (SELECT COALESCE(SUM(delta_usd), 0) FROM vis_credits_ledger WHERE account_id = a.id) AS credit_balance
          FROM vis_accounts a
-         ORDER BY a.id DESC`
+         ORDER BY a.id DESC LIMIT 51 OFFSET ?`,
       )
-      .all() as Promise<AccountRow[]>,
+      .all((page - 1) * PAGE_SIZE) as Promise<AccountRow[]>,
     serviceDb
       .prepare(
         `SELECT j.id, j.type, j.attempts, j.result, j.updated_at, a.name AS account_name
@@ -88,29 +101,39 @@ export default async function AdminPage() {
          JOIN vis_accounts a ON a.id = j.account_id
          WHERE j.status = 'error'
          ORDER BY j.updated_at DESC
-         LIMIT 20`
+         LIMIT 20`,
       )
       .all() as Promise<ErroredJob[]>,
   ]);
 
+  const hasMore = accounts.length > PAGE_SIZE;
+  accounts.splice(PAGE_SIZE);
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2.5">
           <ShieldAlert className="w-5 h-5 text-rose-400" />
           <div>
-            <h1 className="text-2xl font-bold text-slate-100">Platform admin</h1>
+            <h1 className="text-2xl font-bold text-slate-100">
+              Platform admin
+            </h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              Cross-tenant view — every account, every job. Not scoped to your own account.
+              Cross-tenant view — every account, every job. Not scoped to your
+              own account.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/app" className="text-sm text-slate-400 hover:text-slate-200">
+          <Link
+            href="/app"
+            className="text-sm text-slate-400 hover:text-slate-200"
+          >
             Back to app
           </Link>
           <form action={logout}>
-            <button className="text-sm text-slate-400 hover:text-slate-200">Log out</button>
+            <button className="text-sm text-slate-400 hover:text-slate-200">
+              Log out
+            </button>
           </form>
         </div>
       </div>
@@ -135,13 +158,28 @@ export default async function AdminPage() {
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-8">
-        <StatCard icon={Clock} label="Jobs pending" value={stats.jobs_pending} tone="amber" />
-        <StatCard icon={Clock} label="Jobs running" value={stats.jobs_running} tone="cyan" />
-        <StatCard icon={AlertTriangle} label="Jobs errored" value={stats.jobs_error} tone="red" />
+        <StatCard
+          icon={Clock}
+          label="Jobs pending"
+          value={stats.jobs_pending}
+          tone="amber"
+        />
+        <StatCard
+          icon={Clock}
+          label="Jobs running"
+          value={stats.jobs_running}
+          tone="cyan"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Jobs errored"
+          value={stats.jobs_error}
+          tone="red"
+        />
       </div>
 
       <h2 className="text-sm font-semibold text-slate-300 mb-2">Accounts</h2>
-      <div className="card overflow-hidden mb-8">
+      <div className="card overflow-x-auto mb-8">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-ink-700 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -166,23 +204,31 @@ export default async function AdminPage() {
                     className={`text-xs px-2 py-0.5 rounded-full border ${
                       a.access_granted
                         ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                        : a.trial_ends_at && new Date(a.trial_ends_at) > new Date()
-                        ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                        : "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                        : a.trial_ends_at &&
+                            new Date(a.trial_ends_at) > new Date()
+                          ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                          : "bg-slate-500/10 text-slate-400 border-slate-500/30"
                     }`}
                   >
                     {a.access_granted
                       ? "access"
-                      : a.trial_ends_at && new Date(a.trial_ends_at) > new Date()
-                      ? "trial"
-                      : a.trial_ends_at
-                      ? "trial expired"
-                      : "no access"}
+                      : a.trial_ends_at &&
+                          new Date(a.trial_ends_at) > new Date()
+                        ? "trial"
+                        : a.trial_ends_at
+                          ? "trial expired"
+                          : "no access"}
                   </span>
                 </td>
-                <td className="px-2 py-2.5 text-right tabular text-slate-300">{a.member_count}</td>
-                <td className="px-2 py-2.5 text-right tabular text-slate-300">{a.audit_count}</td>
-                <td className="px-2 py-2.5 text-right tabular text-slate-300">{a.campaign_count}</td>
+                <td className="px-2 py-2.5 text-right tabular text-slate-300">
+                  {a.member_count}
+                </td>
+                <td className="px-2 py-2.5 text-right tabular text-slate-300">
+                  {a.audit_count}
+                </td>
+                <td className="px-2 py-2.5 text-right tabular text-slate-300">
+                  {a.campaign_count}
+                </td>
                 <td className="px-4 py-2.5 text-right tabular text-slate-300">
                   ${Number(a.credit_balance).toFixed(2)}
                 </td>
@@ -192,11 +238,16 @@ export default async function AdminPage() {
         </table>
       </div>
 
-      <h2 className="text-sm font-semibold text-slate-300 mb-2">Recent errored jobs</h2>
+      <Pagination page={page} hasMore={hasMore} path="/admin" />
+      <h2 className="text-sm font-semibold text-slate-300 mb-2">
+        Recent errored jobs
+      </h2>
       {erroredJobs.length === 0 ? (
-        <p className="text-sm text-slate-500">No errored jobs — the queue is healthy.</p>
+        <p className="text-sm text-slate-500">
+          No errored jobs — the queue is healthy.
+        </p>
       ) : (
-        <div className="card overflow-hidden">
+        <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-ink-700 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -210,10 +261,17 @@ export default async function AdminPage() {
             <tbody>
               {erroredJobs.map((j) => (
                 <tr key={j.id} className="border-b border-ink-800">
-                  <td className="px-4 py-2.5 text-slate-200">{j.account_name}</td>
+                  <td className="px-4 py-2.5 text-slate-200">
+                    {j.account_name}
+                  </td>
                   <td className="px-2 py-2.5 text-slate-400">{j.type}</td>
-                  <td className="px-2 py-2.5 text-right tabular text-slate-300">{j.attempts}</td>
-                  <td className="px-2 py-2.5 text-red-400 text-xs max-w-md truncate" title={j.result ?? ""}>
+                  <td className="px-2 py-2.5 text-right tabular text-slate-300">
+                    {j.attempts}
+                  </td>
+                  <td
+                    className="px-2 py-2.5 text-red-400 text-xs max-w-md truncate"
+                    title={j.result ?? ""}
+                  >
                     {j.result ?? "—"}
                   </td>
                   <td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">
@@ -252,7 +310,9 @@ function StatCard({
         <Icon className={`w-3.5 h-3.5 ${toneClass}`} />
         {label}
       </div>
-      <div className="text-2xl font-bold text-slate-100 mt-1 tabular">{value}</div>
+      <div className="text-2xl font-bold text-slate-100 mt-1 tabular">
+        {value}
+      </div>
     </div>
   );
 }

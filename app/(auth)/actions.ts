@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { supabaseServerClient } from "@/lib/supabase-server";
 import db, { getCurrentAccountId } from "@/lib/db";
-import { logAuditEvent } from "@/lib/auditLog";
+import { safeLogAuditEvent as logAuditEvent } from "@/lib/auditLog";
 
 export async function login(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
@@ -12,13 +12,20 @@ export async function login(formData: FormData) {
   // follow same-site paths — "//evil.com" or "https://evil.com" would
   // otherwise turn the login form into an open redirect.
   const rawNext = String(formData.get("next") ?? "/app");
-  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.startsWith("/\\")
-    ? rawNext
-    : "/app";
+  const next =
+    rawNext.startsWith("/") &&
+    !rawNext.startsWith("//") &&
+    !rawNext.startsWith("/\\")
+      ? rawNext
+      : "/app";
 
-  const { error } = await supabaseServerClient().auth.signInWithPassword({ email, password });
+  const { error } = await (
+    await supabaseServerClient()
+  ).auth.signInWithPassword({ email, password });
   if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`);
+    redirect(
+      `/login?error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`,
+    );
   }
   redirect(next);
 }
@@ -29,10 +36,14 @@ export async function signup(formData: FormData) {
   const ref = String(formData.get("ref") ?? "").trim();
   const refQuery = ref ? `?ref=${encodeURIComponent(ref)}` : "";
 
-  const { data, error } = await supabaseServerClient().auth.signUp({
+  const { data, error } = await (
+    await supabaseServerClient()
+  ).auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding${refQuery}` },
+    options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding${refQuery}`,
+    },
   });
   if (error) {
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);
@@ -46,7 +57,7 @@ export async function signup(formData: FormData) {
 }
 
 export async function logout() {
-  await supabaseServerClient().auth.signOut();
+  await (await supabaseServerClient()).auth.signOut();
   redirect("/");
 }
 
@@ -56,30 +67,43 @@ export async function changePassword(formData: FormData) {
 
   if (password.length < 8) {
     redirect(
-      "/app/settings?password_error=" + encodeURIComponent("Password must be at least 8 characters")
+      "/app/settings?password_error=" +
+        encodeURIComponent("Password must be at least 8 characters"),
     );
   }
   if (password !== confirmPassword) {
-    redirect("/app/settings?password_error=" + encodeURIComponent("Passwords don't match"));
+    redirect(
+      "/app/settings?password_error=" +
+        encodeURIComponent("Passwords don't match"),
+    );
   }
 
-  const client = supabaseServerClient();
+  const client = await supabaseServerClient();
   const { error } = await client.auth.updateUser({ password });
   if (error) {
-    redirect("/app/settings?password_error=" + encodeURIComponent(error.message));
+    redirect(
+      "/app/settings?password_error=" + encodeURIComponent(error.message),
+    );
   }
 
   const email = (await client.auth.getUser()).data.user?.email ?? null;
   const accountId = await getCurrentAccountId();
-  await logAuditEvent(accountId, "password_changed", `${email ?? "Someone"} changed their password`, email);
+  await logAuditEvent(
+    accountId,
+    "password_changed",
+    `${email ?? "Someone"} changed their password`,
+    email,
+  );
 
   redirect("/app/settings?password_changed=1");
 }
 
 export async function createAccount(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) {
-    redirect("/onboarding?error=" + encodeURIComponent("Account name is required"));
+  if (!name || name.length > 200) {
+    redirect(
+      "/onboarding?error=" + encodeURIComponent("Account name is required"),
+    );
   }
   const ref = String(formData.get("ref") ?? "").trim() || null;
   // Explicit cast: pg sends bare params with no type OID ("unknown"), and a
@@ -93,10 +117,13 @@ export async function createAccount(formData: FormData) {
   // /onboarding, or double-submitted) just lands in their existing account.
   try {
     await db
-      .prepare("SELECT vis_create_account_with_owner(@name::text, @ref::text) AS id")
+      .prepare(
+        "SELECT vis_create_account_guarded(@name::text, @ref::text) AS id",
+      )
       .get({ name, ref });
   } catch (err) {
-    if (!(err instanceof Error && err.message === "you already own an account")) throw err;
+    if (!(err instanceof Error && err.message === "you already own an account"))
+      throw err;
   }
   redirect("/app");
 }

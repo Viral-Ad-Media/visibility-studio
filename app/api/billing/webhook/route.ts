@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { serviceDb as db } from "@/lib/db";
-import { logAuditEvent } from "@/lib/auditLog";
+import { safeLogAuditEvent as logAuditEvent } from "@/lib/auditLog";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,10 @@ export async function POST(req: Request) {
   const signature = req.headers.get("stripe-signature");
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!signature || !secret) {
-    return NextResponse.json({ error: "missing signature/secret" }, { status: 400 });
+    return NextResponse.json(
+      { error: "missing signature/secret" },
+      { status: 400 },
+    );
   }
 
   const rawBody = await req.text();
@@ -23,10 +26,16 @@ export async function POST(req: Request) {
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, secret);
   } catch (err) {
-    return NextResponse.json({ error: `invalid signature: ${err}` }, { status: 400 });
+    return NextResponse.json(
+      { error: `invalid signature: ${err}` },
+      { status: 400 },
+    );
   }
 
-  if (event.type !== "checkout.session.completed") {
+  if (
+    event.type !== "checkout.session.completed" &&
+    event.type !== "checkout.session.async_payment_succeeded"
+  ) {
     return NextResponse.json({ ok: true, ignored: event.type });
   }
 
@@ -40,7 +49,10 @@ export async function POST(req: Request) {
   // debits etc.) before the money has actually cleared — only fulfill once
   // Stripe reports it paid.
   if (session.payment_status !== "paid") {
-    return NextResponse.json({ ok: true, ignored: `payment_status=${session.payment_status}` });
+    return NextResponse.json({
+      ok: true,
+      ignored: `payment_status=${session.payment_status}`,
+    });
   }
   const accountId = Number(session.metadata?.account_id);
   const type = session.metadata?.type;
@@ -48,6 +60,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "missing metadata" }, { status: 400 });
   }
   const amountUsd = Number(session.metadata?.amount_usd ?? 0);
+  if (
+    type === "credits" &&
+    (!Number.isFinite(amountUsd) ||
+      amountUsd <= 0 ||
+      Math.round(amountUsd * 100) !== session.amount_total)
+  ) {
+    return NextResponse.json(
+      { error: "Invalid credit amount" },
+      { status: 400 },
+    );
+  }
 
   // The payment record and the grant commit together. Idempotency comes from
   // the unique constraint on stripe_session_id — a replayed webhook is a
@@ -59,7 +82,7 @@ export async function POST(req: Request) {
       await tx
         .prepare(
           `INSERT INTO vis_payments (account_id, stripe_session_id, type, amount_cents)
-           VALUES (@account_id, @stripe_session_id, @type, @amount_cents)`
+           VALUES (@account_id, @stripe_session_id, @type, @amount_cents)`,
         )
         .run({
           account_id: accountId,
@@ -70,14 +93,20 @@ export async function POST(req: Request) {
 
       if (type === "access") {
         await tx
-          .prepare("UPDATE vis_accounts SET access_granted = true, updated_at = now() WHERE id = ?")
+          .prepare(
+            "UPDATE vis_accounts SET access_granted = true, updated_at = now() WHERE id = ?",
+          )
           .run(accountId);
       } else if (amountUsd > 0) {
         await tx
           .prepare(
-            "INSERT INTO vis_credits_ledger (account_id, delta_usd, reason) VALUES (@account_id, @delta_usd, @reason)"
+            "INSERT INTO vis_credits_ledger (account_id, delta_usd, reason) VALUES (@account_id, @delta_usd, @reason)",
           )
-          .run({ account_id: accountId, delta_usd: amountUsd, reason: `stripe:${session.id}` });
+          .run({
+            account_id: accountId,
+            delta_usd: amountUsd,
+            reason: `stripe:${session.id}`,
+          });
       }
     });
   } catch (err) {
@@ -87,9 +116,17 @@ export async function POST(req: Request) {
   }
 
   if (type === "access") {
-    await logAuditEvent(accountId, "access_granted", "Software access unlocked via one-time payment");
+    await logAuditEvent(
+      accountId,
+      "access_granted",
+      "Software access unlocked via one-time payment",
+    );
   } else if (amountUsd > 0) {
-    await logAuditEvent(accountId, "credits_purchased", `$${amountUsd} credit purchased`);
+    await logAuditEvent(
+      accountId,
+      "credits_purchased",
+      `$${amountUsd} credit purchased`,
+    );
   }
 
   return NextResponse.json({ ok: true });

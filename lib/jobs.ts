@@ -1,6 +1,7 @@
 import type { Db } from "./db";
 
-export type EnqueueableJobType = "run_audit" | "build_redesign" | "create_booking_link";
+export type EnqueueableJobType =
+  "run_audit" | "build_redesign" | "create_booking_link";
 
 // Clients can't INSERT into vis_jobs directly (RLS, migration
 // vis_rls_lockdown) — every job goes through the vis_enqueue_job() RPC, which
@@ -13,10 +14,12 @@ export type EnqueueableJobType = "run_audit" | "build_redesign" | "create_bookin
 export async function enqueueJob(
   database: Db,
   type: EnqueueableJobType,
-  targetId: number
+  targetId: number,
 ): Promise<number> {
   const row = await database
-    .prepare("SELECT vis_enqueue_job(@type::text, @target_id::bigint) AS id")
+    .prepare(
+      "SELECT vis_enqueue_job_guarded(@type::text, @target_id::bigint) AS id",
+    )
     .get({ type, target_id: targetId });
   return row!.id;
 }
@@ -24,5 +27,10 @@ export async function enqueueJob(
 // The RPC raises this when the balance hit $0 between the route's own
 // pre-check and the insert.
 export function isInsufficientCredits(err: unknown): boolean {
-  return err instanceof Error && err.message === "insufficient_credits";
+  return (
+    err instanceof Error &&
+    ["insufficient_credits", "insufficient_available_credits"].includes(
+      err.message,
+    )
+  );
 }

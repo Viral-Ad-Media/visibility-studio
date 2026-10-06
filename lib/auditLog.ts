@@ -11,12 +11,12 @@ export async function logAuditEvent(
   action: string,
   description: string,
   actorEmail?: string | null,
-  costUsd?: number | null
+  costUsd?: number | null,
 ): Promise<void> {
   await db
     .prepare(
       `INSERT INTO vis_audit_log (account_id, actor_email, action, description, cost_usd)
-       VALUES (@account_id, @actor_email, @action, @description, @cost_usd)`
+       VALUES (@account_id, @actor_email, @action, @description, @cost_usd)`,
     )
     .run({
       account_id: accountId,
@@ -25,4 +25,17 @@ export async function logAuditEvent(
       description,
       cost_usd: costUsd ?? null,
     });
+}
+
+export async function safeLogAuditEvent(
+  ...args: Parameters<typeof logAuditEvent>
+): Promise<void> {
+  try {
+    await logAuditEvent(...args);
+  } catch {
+    console.error("Audit log write failed", {
+      accountId: args[0],
+      action: args[1],
+    });
+  }
 }

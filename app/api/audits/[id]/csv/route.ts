@@ -1,9 +1,21 @@
+import { z } from "zod";
+import {
+  apiRoute,
+  parseBody,
+  parseId,
+  auditInput,
+  positiveId,
+  idList,
+} from "@/lib/api";
 import { buildAuditCsv, auditCsvFilename } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const result = await buildAuditCsv(Number(params.id));
+async function GETHandler(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const result = await buildAuditCsv(parseId((await params).id));
   if (!result) return new Response("not found", { status: 404 });
 
   return new Response(result.csv, {
@@ -13,3 +25,5 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     },
   });
 }
+
+export const GET = apiRoute(GETHandler, true);

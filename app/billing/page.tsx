@@ -1,32 +1,58 @@
+import AccountMenu from "@/components/AccountMenu";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, XCircle, Clock, ShieldCheck, Rocket } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ShieldCheck,
+  Rocket,
+} from "lucide-react";
 import { supabaseServerClient } from "@/lib/supabase-server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
 import { hasAppAccess, type Account } from "@/lib/shared";
-import { ACCESS_FEE_USD, TRIAL_DAYS, TRIAL_STARTER_CREDIT_USD, formatUsd } from "@/lib/pricing";
-import { BuyAccessButton, BuyCreditsGrid, StartTrialButton } from "@/components/BillingActions";
+import {
+  ACCESS_FEE_USD,
+  TRIAL_DAYS,
+  TRIAL_STARTER_CREDIT_USD,
+  formatUsd,
+} from "@/lib/pricing";
+import {
+  BuyAccessButton,
+  BuyCreditsGrid,
+  StartTrialButton,
+} from "@/components/BillingActions";
 import { logout } from "@/app/(auth)/actions";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
 export default async function BillingPage({
-  searchParams,
+  searchParams: searchParamsPromise,
 }: {
-  searchParams: { success?: string; canceled?: string };
+  searchParams: Promise<{ success?: string; canceled?: string }>;
 }) {
+  const searchParams = await searchParamsPromise;
   const {
     data: { user },
-  } = await supabaseServerClient().auth.getUser();
+  } = await (await supabaseServerClient()).auth.getUser();
   if (!user) redirect("/login");
 
   const accountId = await getCurrentAccountId();
   const [account, creditBalance] = await Promise.all([
     db
-      .prepare("SELECT id, name, access_granted, trial_ends_at FROM vis_accounts WHERE id = ?")
+      .prepare(
+        "SELECT id, name, access_granted, trial_ends_at FROM vis_accounts WHERE id = ?",
+      )
       .get(accountId) as Promise<Account>,
     getCreditBalance(accountId),
   ]);
@@ -34,7 +60,13 @@ export default async function BillingPage({
   const onTrial = hasAppAccess(account) && !account.access_granted;
   const trialEligible = !account.access_granted && !account.trial_ends_at;
   const trialDaysLeft = onTrial
-    ? Math.max(0, Math.ceil((new Date(account.trial_ends_at!).getTime() - Date.now()) / 86_400_000))
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(account.trial_ends_at!).getTime() - Date.now()) /
+            86_400_000,
+        ),
+      )
     : 0;
 
   return (
@@ -43,14 +75,17 @@ export default async function BillingPage({
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-xl font-bold text-foreground">Billing</h1>
           <form action={logout}>
-            <button className="text-sm text-muted-foreground hover:text-foreground">Log out</button>
+            <button className="text-sm text-muted-foreground hover:text-foreground">
+              Log out
+            </button>
           </form>
         </div>
+        <AccountMenu />
 
         {searchParams.success && (
           <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-            <CheckCircle2 className="h-4 w-4" /> Payment received — this updates within a few
-            seconds.
+            <CheckCircle2 className="h-4 w-4" /> Payment received — this updates
+            within a few seconds.
           </div>
         )}
         {searchParams.canceled && (
@@ -63,8 +98,8 @@ export default async function BillingPage({
           <div className="space-y-4">
             {onTrial && (
               <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
-                <Clock className="h-4 w-4" /> Free trial active — {trialDaysLeft}{" "}
-                {trialDaysLeft === 1 ? "day" : "days"} left.{" "}
+                <Clock className="h-4 w-4" /> Free trial active —{" "}
+                {trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"} left.{" "}
                 <Link href="/app" className="underline">
                   Go to app
                 </Link>
@@ -78,8 +113,13 @@ export default async function BillingPage({
                       <div className="flex items-center justify-center rounded-full border p-1.5">
                         <Clock className="h-3.5 w-3.5" />
                       </div>
-                      <CardTitle className="font-mono text-sm text-muted-foreground">Trial</CardTitle>
-                      <Badge variant="secondary" className="ml-auto rounded-full">
+                      <CardTitle className="font-mono text-sm text-muted-foreground">
+                        Trial
+                      </CardTitle>
+                      <Badge
+                        variant="secondary"
+                        className="ml-auto rounded-full"
+                      >
                         {TRIAL_DAYS} days
                       </Badge>
                     </div>
@@ -87,8 +127,9 @@ export default async function BillingPage({
                       <span className="text-3xl font-bold">Free</span>
                     </div>
                     <CardDescription className="pt-2">
-                      Full access to automated audits and campaigns, no payment required. Comes
-                      with {formatUsd(TRIAL_STARTER_CREDIT_USD)} of starter credit. One trial per account.
+                      Full access to automated audits and campaigns, no payment
+                      required. Comes with {formatUsd(TRIAL_STARTER_CREDIT_USD)}{" "}
+                      of starter credit. One trial per account.
                     </CardDescription>
                   </CardHeader>
                   <CardFooter>
@@ -110,11 +151,13 @@ export default async function BillingPage({
                     </Badge>
                   </div>
                   <div className="mt-3 flex items-baseline gap-2">
-                    <span className="text-3xl font-bold">{formatUsd(ACCESS_FEE_USD)}</span>
+                    <span className="text-3xl font-bold">
+                      {formatUsd(ACCESS_FEE_USD)}
+                    </span>
                   </div>
                   <CardDescription className="pt-2">
-                    One-time payment for full access to audits, campaigns, and every feature
-                    going forward.
+                    One-time payment for full access to audits, campaigns, and
+                    every feature going forward.
                   </CardDescription>
                 </CardHeader>
                 <CardFooter>
@@ -133,15 +176,20 @@ export default async function BillingPage({
                     ${creditBalance.toFixed(2)}
                   </span>
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">credit balance</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  credit balance
+                </div>
               </CardContent>
             </Card>
             <div>
-              <h2 className="mb-1 text-sm font-semibold text-foreground">Buy credits</h2>
+              <h2 className="mb-1 text-sm font-semibold text-foreground">
+                Buy credits
+              </h2>
               <p className="mb-4 text-sm text-muted-foreground">
-                Credits fund the real Anthropic API cost of running audits and campaigns — each
-                job deducts its own actual cost from your balance. New audits/campaigns are
-                blocked once your balance reaches $0.
+                Credits fund the real Anthropic API cost of running audits and
+                campaigns — each job deducts its own actual cost from your
+                balance. New audits/campaigns are blocked once your balance
+                reaches $0.
               </p>
               <BuyCreditsGrid />
             </div>

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -30,41 +31,68 @@ export default function AuditActions({ audit }: Props) {
   const [count, setCount] = useState(audit.target_count);
   const [notes, setNotes] = useState(audit.notes ?? "");
 
-  const canEdit = audit.status === "queued" || audit.status === "error";
+  const canEdit = audit.status === "ready" || audit.status === "error";
 
   async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const res = await fetch(`/api/audits/${audit.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, location, target_count: count, notes }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setError((await res.json()).error ?? "Failed to save");
-      return;
+    try {
+      e.preventDefault();
+      setBusy(true);
+      setError(null);
+      const res = await apiFetch(`/api/audits/${audit.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category,
+          location,
+          target_count: count,
+          notes,
+        }),
+      });
+      setBusy(false);
+      if (!res.ok) {
+        setError((await res.json()).error ?? "Failed to save");
+        return;
+      }
+      setEditing(false);
+      router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Operation failed. Please try again.",
+      );
+    } finally {
+      setBusy(false);
     }
-    setEditing(false);
-    router.refresh();
   }
 
   async function remove() {
-    if (!confirming) {
-      setConfirming(true);
-      setTimeout(() => setConfirming(false), 10000);
-      return;
+    try {
+      if (!confirming) {
+        setConfirming(true);
+        setTimeout(() => setConfirming(false), 10000);
+        return;
+      }
+      setBusy(true);
+      const res = await apiFetch(`/api/audits/${audit.id}`, {
+        method: "DELETE",
+      });
+      setBusy(false);
+      if (!res.ok) {
+        setError((await res.json()).error ?? "Failed to delete");
+        return;
+      }
+      router.push("/app");
+      router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Operation failed. Please try again.",
+      );
+    } finally {
+      setBusy(false);
     }
-    setBusy(true);
-    const res = await fetch(`/api/audits/${audit.id}`, { method: "DELETE" });
-    setBusy(false);
-    if (!res.ok) {
-      setError((await res.json()).error ?? "Failed to delete");
-      return;
-    }
-    router.push("/app");
-    router.refresh();
   }
 
   const input =
@@ -76,8 +104,16 @@ export default function AuditActions({ audit }: Props) {
     <>
       <div className="flex items-center gap-2">
         {canEdit && (
-          <button className={btn} disabled={busy} onClick={() => setEditing(!editing)}>
-            {editing ? <X className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+          <button
+            className={btn}
+            disabled={busy}
+            onClick={() => setEditing(!editing)}
+          >
+            {editing ? (
+              <X className="w-3.5 h-3.5" />
+            ) : (
+              <Pencil className="w-3.5 h-3.5" />
+            )}
             {editing ? "Cancel" : "Edit"}
           </button>
         )}
@@ -106,52 +142,54 @@ export default function AuditActions({ audit }: Props) {
             onClick={(e) => e.stopPropagation()}
             className="card p-5 space-y-4 w-full max-w-xl"
           >
-          <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  Niche / category
+                </label>
+                <input
+                  className={input}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  Location
+                </label>
+                <input
+                  className={input}
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Niche / category
+                Number of businesses
               </label>
               <input
-                className={input}
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                required
+                type="number"
+                min={1}
+                max={50}
+                className={input + " w-32"}
+                value={count}
+                onChange={(e) => setCount(Number(e.target.value))}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">Location</label>
-              <input
-                className={input}
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                required
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                Notes for the engine
+              </label>
+              <textarea
+                className={input + " h-20 resize-none"}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
               />
             </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Number of businesses
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={50}
-              className={input + " w-32"}
-              value={count}
-              onChange={(e) => setCount(Number(e.target.value))}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Notes for the engine
-            </label>
-            <textarea
-              className={input + " h-20 resize-none"}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-          {error && <div className="text-sm text-red-400">{error}</div>}
+            {error && <div className="text-sm text-red-400">{error}</div>}
             <button
               disabled={busy}
               className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg"
@@ -161,7 +199,9 @@ export default function AuditActions({ audit }: Props) {
           </form>
         </div>
       )}
-      {error && !editing && <div className="text-sm text-red-400 mt-2">{error}</div>}
+      {error && !editing && (
+        <div className="text-sm text-red-400 mt-2">{error}</div>
+      )}
     </>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -43,14 +44,26 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      onClick={() => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch (error) {
+          window.alert(
+            error instanceof Error
+              ? error.message
+              : "Operation failed. Please try again.",
+          );
+        }
       }}
       className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-2.5 py-1.5 rounded-lg"
     >
-      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? (
+        <Check className="w-3.5 h-3.5 text-emerald-400" />
+      ) : (
+        <Copy className="w-3.5 h-3.5" />
+      )}
       {copied ? "Copied" : label}
     </button>
   );
@@ -71,14 +84,27 @@ function RequeueButton({
     <button
       disabled={busy}
       onClick={async () => {
-        setBusy(true);
-        await fetch(`/api/campaign-businesses/${campaignBusinessId}/requeue`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type }),
-        });
-        setBusy(false);
-        router.refresh();
+        try {
+          setBusy(true);
+          await apiFetch(
+            `/api/campaign-businesses/${campaignBusinessId}/requeue`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ type }),
+            },
+          );
+          setBusy(false);
+          router.refresh();
+        } catch (error) {
+          window.alert(
+            error instanceof Error
+              ? error.message
+              : "Operation failed. Please try again.",
+          );
+        } finally {
+          setBusy(false);
+        }
       }}
       className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-2.5 py-1.5 rounded-lg disabled:opacity-50"
     >
@@ -94,14 +120,24 @@ function Row({ r }: { r: CampaignBusinessRow }) {
   const router = useRouter();
 
   async function setStage(stage: string) {
-    setSaving(true);
-    await fetch(`/api/campaign-businesses/${r.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage }),
-    });
-    setSaving(false);
-    router.refresh();
+    try {
+      setSaving(true);
+      await apiFetch(`/api/campaign-businesses/${r.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage }),
+      });
+      setSaving(false);
+      router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Operation failed. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   const hasEmail = r.email && r.email !== "not found";
@@ -167,7 +203,9 @@ function Row({ r }: { r: CampaignBusinessRow }) {
               </a>
             )}
             {hasEmail && <CopyButton text={r.email!} label="Copy email" />}
-            {r.phone && <span className="text-xs text-slate-400">{r.phone}</span>}
+            {r.phone && (
+              <span className="text-xs text-slate-400">{r.phone}</span>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <span className="text-[11px] text-slate-500">Stage</span>
               <StatusSelect
@@ -202,7 +240,8 @@ function Row({ r }: { r: CampaignBusinessRow }) {
               {r.redesign_status === "error" && r.redesign_error && (
                 <div className="text-xs text-red-400">{r.redesign_error}</div>
               )}
-              {(r.redesign_status === "error" || r.redesign_status === "ready") && (
+              {(r.redesign_status === "error" ||
+                r.redesign_status === "ready") && (
                 <RequeueButton
                   campaignBusinessId={r.id}
                   type="build_redesign"
@@ -239,7 +278,8 @@ function Row({ r }: { r: CampaignBusinessRow }) {
               {r.booking_status === "error" && r.booking_error && (
                 <div className="text-xs text-red-400">{r.booking_error}</div>
               )}
-              {(r.booking_status === "error" || r.booking_status === "ready") && (
+              {(r.booking_status === "error" ||
+                r.booking_status === "ready") && (
                 <RequeueButton
                   campaignBusinessId={r.id}
                   type="create_booking_link"
@@ -257,13 +297,16 @@ function Row({ r }: { r: CampaignBusinessRow }) {
                   {r.booking_status !== "ready" && (
                     <span className="text-slate-500 normal-case font-normal">
                       {" "}
-                      (booking link not ready yet — will be appended once generated)
+                      (booking link not ready yet — will be appended once
+                      generated)
                     </span>
                   )}
                 </div>
                 <CopyButton text={readyToSendEmail} label="Copy email" />
               </div>
-              <div className="text-sm text-slate-300 whitespace-pre-wrap">{readyToSendEmail}</div>
+              <div className="text-sm text-slate-300 whitespace-pre-wrap">
+                {readyToSendEmail}
+              </div>
             </div>
           )}
         </div>
@@ -272,7 +315,11 @@ function Row({ r }: { r: CampaignBusinessRow }) {
   );
 }
 
-export default function CampaignBusinessTable({ rows }: { rows: CampaignBusinessRow[] }) {
+export default function CampaignBusinessTable({
+  rows,
+}: {
+  rows: CampaignBusinessRow[];
+}) {
   return (
     <div className="space-y-2">
       {rows.map((r) => (

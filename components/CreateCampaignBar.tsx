@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -22,29 +23,46 @@ export default function CreateCampaignBar({
   if (selectedIds.length === 0) return null;
 
   async function create(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const res = await fetch("/api/campaigns", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ audit_id: auditId, name, business_ids: selectedIds }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setError((await res.json()).error ?? "Failed to create campaign");
-      return;
+    try {
+      e.preventDefault();
+      setBusy(true);
+      setError(null);
+      const res = await apiFetch("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          audit_id: auditId,
+          name,
+          business_ids: selectedIds,
+        }),
+      });
+      setBusy(false);
+      if (!res.ok) {
+        setError((await res.json()).error ?? "Failed to create campaign");
+        return;
+      }
+      const { id } = await res.json();
+      onCreated();
+      router.push(`/app/campaigns/${id}`);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Operation failed. Please try again.",
+      );
+    } finally {
+      setBusy(false);
     }
-    const { id } = await res.json();
-    onCreated();
-    router.push(`/app/campaigns/${id}`);
   }
 
   return (
     <>
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 card px-5 py-3 flex items-center gap-4 shadow-xl border-indigo-600/40">
+      <div className="fixed bottom-6 max-w-[calc(100vw-2rem)] flex-wrap justify-center left-1/2 -translate-x-1/2 z-40 card px-5 py-3 flex items-center gap-4 shadow-xl border-indigo-600/40">
         <span className="text-sm text-slate-200">
-          <span className="font-semibold text-indigo-400">{selectedIds.length}</span> selected
+          <span className="font-semibold text-indigo-400">
+            {selectedIds.length}
+          </span>{" "}
+          selected
         </span>
         <button
           onClick={() => setOpen(true)}
@@ -75,8 +93,9 @@ export default function CreateCampaignBar({
               </button>
             </div>
             <p className="text-xs text-slate-500">
-              {selectedIds.length} businesses selected. The engine will automatically generate a
-              homepage redesign mockup and a booking link for each.
+              {selectedIds.length} businesses selected. The engine will
+              automatically generate a homepage redesign mockup and a booking
+              link for each.
             </p>
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">
