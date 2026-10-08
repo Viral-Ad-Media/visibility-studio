@@ -60,3 +60,11 @@ Open the intended Supabase project, click **Connect**, and copy the **Transactio
 A successful login-page render only verifies the Auth configuration path. After configuring the database, verify an authenticated dashboard request and check that the existing `vis_*` schema and audited migration are present. For an authorized fresh project, use the complete bootstrap above; the legacy upgrade alone cannot initialize an empty schema.
 
 Reference: [Supabase PostgreSQL connections](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
+## Automated worker setup
+
+After the fresh bootstrap (or existing-schema upgrade), apply `supabase/migrations/20261008215237_engine_automation.sql` once. This enables pg_net and pg_cron, installs a private insert trigger and a one-minute backstop, and throttles wakeups to one every 15 seconds. Dispatch skips idle queues and missing credentials. The URL is pinned to the production Visibility Studio endpoint to prevent credential forwarding.
+
+In Vercel Production, configure `ANTHROPIC_API_KEY` and a random `ENGINE_WEBHOOK_SECRET` of at least 32 characters, then rebuild. In Supabase Vault, create `vis_engine_webhook_url` with `https://visibility-studio-tau.vercel.app/api/engine/run` and `vis_engine_webhook_secret` with the **same value** as Vercel's `ENGINE_WEBHOOK_SECRET`. Set credentials privately in the dashboards; never commit them or include them in logs. Production webhook URL was provisioned during setup; the owner must supply the matching Vault secret. Vercel Secret values cannot be retrieved after saving.
+
+Verify `cron.job`, job attempts/status and worker response codes after configuration. A scheduled run returning successfully only proves the scheduler executed; verify the HTTP response and actual queue progress separately. The automation integration test mocks pg_net and checks missing configuration, URL pinning, throttling and denied client execution.
