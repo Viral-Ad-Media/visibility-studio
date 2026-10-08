@@ -63,7 +63,7 @@ export default async function AuditPage({
       <div className="flex items-start justify-between gap-4 mb-1">
         <div>
           <Link
-            href="/app"
+            href="/app/audits"
             className="text-xs text-slate-500 hover:text-slate-300"
           >
             ← All audits

@@ -50,3 +50,11 @@ Open the intended Supabase project, click **Connect**, and copy the **Transactio
 A successful login-page render only verifies the Auth configuration path. After configuring the database, verify an authenticated dashboard request and check that the existing `vis_*` schema and audited migration are present. Do not create a replacement database or apply the upgrade to an empty schema.
 
 Reference: [Supabase PostgreSQL connections](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
+## Workspace UI
+
+The workspace follows Agentor AI's overview pattern, adapted to local-business prospecting. `/app` is the overview: a data-driven setup checklist, attention links for failed/active audits and selected campaign prospects, discovery/opportunity/outreach totals, current campaign stages, and the five most recent audits. Totals cover the active account through the existing authenticated RLS connection; they are not page totals. Pipeline counts are current stages, not historical conversion rates.
+
+`/app/audits` retains the paginated audit library and adds server-side niche/location/query search and status filtering. Filters survive pagination. The workspace header searches that library, exposes the credit balance and theme toggle, and the sidebar groups discovery, engagement, and workspace tools. Audit details and campaigns still use their existing routes and account permissions. Draft delivery remains manual; this change does not add email sending, paid ad launches, funnel hosting, or social publishing.
+
+Authenticated production UI verification requires the intended database connection and schema. Component previews use explicitly labelled sample data and cannot establish live database connectivity.

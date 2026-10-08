@@ -26,8 +26,14 @@ import ThemeToggle from "./ThemeToggle";
 const links = [
   {
     href: "/app",
-    label: "Audits",
+    label: "Overview",
     icon: LayoutDashboard,
+    tourId: "tour-nav-overview",
+  },
+  {
+    href: "/app/audits",
+    label: "Audits",
+    icon: SearchCheck,
     tourId: "tour-nav-audits",
   },
   {
@@ -99,7 +105,7 @@ export default function Nav({
       </button>
       <nav
         id="cockpit-navigation"
-        className={`${open ? "flex" : "hidden"} md:flex w-full md:w-56 shrink-0 border-r border-ink-700 bg-ink-900 p-4 flex-col gap-1`}
+        className={`${open ? "flex" : "hidden"} md:flex w-full md:w-60 md:sticky md:top-0 md:h-screen md:overflow-y-auto shrink-0 border-r border-ink-700 bg-ink-900 p-4 flex-col gap-1`}
       >
         <Link href="/" className="flex items-center gap-2 px-2 py-3 mb-4">
           <Radar className="w-6 h-6 text-indigo-400" />
@@ -114,8 +120,10 @@ export default function Nav({
         </Link>
         {links.map(({ href, label, icon: Icon, tourId }) => {
           const active =
-            href === "/app" ? pathname === "/app" : pathname.startsWith(href);
+            href === "/app" ? pathname === "/app" : (pathname.startsWith(href) || (href === "/app/audits" && pathname.startsWith("/app/audit/")));
           return (
+            <div key={href}>
+            {["/app/audits", "/app/campaigns", "/app/referrals"].includes(href) && <p className="px-3 pt-5 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{href === "/app/audits" ? "Discover" : href === "/app/campaigns" ? "Engage" : "Workspace"}</p>}
             <Link
               key={href}
               href={href}
@@ -123,13 +131,14 @@ export default function Nav({
               onClick={() => setOpen(false)}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm ${
                 active
-                  ? "bg-ink-700 text-slate-100 font-medium"
+                  ? "bg-indigo-500/10 text-indigo-400 font-medium"
                   : "text-slate-400 hover:bg-ink-800 hover:text-slate-200"
               }`}
             >
               <Icon className="w-4 h-4" />
               {label}
             </Link>
+            </div>
           );
         })}
         <div className="mt-auto space-y-3">
