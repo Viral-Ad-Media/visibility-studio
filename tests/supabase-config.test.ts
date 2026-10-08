@@ -66,6 +66,7 @@ it("prevents a deployment build without configuration and permits either public 
     NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "",
     NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+    DATABASE_URL: "postgresql://postgres:fixture@db.example.com:5432/postgres",
   };
   const missing = spawnSync(
     process.execPath,

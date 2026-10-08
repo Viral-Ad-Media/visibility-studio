@@ -37,6 +37,16 @@ If the deployed handler reports “Your project's URL and Key are required”, i
 
 In the Vercel `visibility-studio` project, set `NEXT_PUBLIC_SUPABASE_URL` and either `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (current Supabase key) or `NEXT_PUBLIC_SUPABASE_ANON_KEY` (legacy anon key). Both values must come from the **same intended Supabase project** that holds Visibility Studio's database and users. Set them for **Production** and, if used, **Preview**; a Development-only value does not configure a production deployment. The publishable key takes precedence if both are populated. Never put a service-role or secret key into a `NEXT_PUBLIC_` variable.
 
-Redeploy with a new build after saving the values: Next.js inlines public variables when building. The new `vercel.json` uses `npm run build:deploy`, which checks the URL/public key before building; CI still uses `npm run build` to validate code without production credentials. The proxy returns a non-cacheable 503 and denies access if configuration is missing, rather than throwing the SDK's opaque handler error. This guard does not create configuration values, install the database migration, or replace a live authentication test.
+Redeploy with a new build after saving the values: Next.js inlines public variables when building. The new `vercel.json` uses `npm run build:deploy`, which checks the Auth URL/public key and server DATABASE_URL before building; CI still uses `npm run build` to validate code without production credentials. The proxy returns a non-cacheable 503 and denies access if configuration is missing, rather than throwing the SDK's opaque handler error. This guard does not create configuration values, install the database migration, or replace a live authentication test.
 
 References: [Supabase Next.js setup](https://supabase.com/docs/guides/getting-started/quickstarts/nextjs), [Vercel environment variables](https://vercel.com/docs/environment-variables/managing-environment-variables).
+
+## PostgreSQL configuration on Vercel
+
+`connect ECONNREFUSED 127.0.0.1:5432` means the database client is trying a local PostgreSQL server. When `DATABASE_URL` is missing, `pg` falls back to its default connection settings; Vercel does not run the application database on localhost. The app now validates the connection string before creating a pool, and deployment preflight rejects missing or malformed values without printing credentials. Pool creation is lazy so credential-free CI builds still work.
+
+Open the intended Supabase project, click **Connect**, and copy the **Transaction pooler** connection string for the serverless Vercel app. Replace the password placeholder with the database password, percent-encoding reserved characters. Save it as a **Secret** named `DATABASE_URL` in Vercel Production (and Preview if used), then rebuild. This is a PostgreSQL URI, not the Supabase HTTPS project URL, public API key, or service-role API key. Never expose it under `NEXT_PUBLIC_`. Keep verified TLS enabled; supply `DATABASE_CA_CERT` if the provider certificate needs its CA.
+
+A successful login-page render only verifies the Auth configuration path. After configuring the database, verify an authenticated dashboard request and check that the existing `vis_*` schema and audited migration are present. Do not create a replacement database or apply the upgrade to an empty schema.
+
+Reference: [Supabase PostgreSQL connections](https://supabase.com/docs/guides/database/connecting-to-postgres).
