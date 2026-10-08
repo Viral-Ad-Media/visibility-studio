@@ -30,3 +30,13 @@ The connected Supabase account available during this fix did not include Vam-das
 - The operator CLI requires `VIS_OPERATOR_ACCOUNT_ID`. `claim` only takes pending work and returns its attempt token. `complete` and `fail` require `--attempt`; completion metadata requires measured `estimated_cost_usd` (explicitly use `0` when no provider usage occurred). Completion uses the same transactional artifact/debit logic as the worker. CLI mutations are for a paused or supervised queue; inspection remains read-only.
 
 Sonnet 5 pricing was rechecked against the [official model reference](https://platform.claude.com/docs/en/models/sonnet-5/overview) on October 5, 2026. Recheck token, cache and research-tool rates before changing models. Default calls use standard global pricing; estimates are not a provider invoice reconciliation.
+
+## Supabase Auth configuration on Vercel
+
+If the deployed handler reports “Your project's URL and Key are required”, its build did not receive the Supabase Auth configuration. The homepage can still render because it is static; that does not prove authentication is configured.
+
+In the Vercel `visibility-studio` project, set `NEXT_PUBLIC_SUPABASE_URL` and either `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (current Supabase key) or `NEXT_PUBLIC_SUPABASE_ANON_KEY` (legacy anon key). Both values must come from the **same intended Supabase project** that holds Visibility Studio's database and users. Set them for **Production** and, if used, **Preview**; a Development-only value does not configure a production deployment. The publishable key takes precedence if both are populated. Never put a service-role or secret key into a `NEXT_PUBLIC_` variable.
+
+Redeploy with a new build after saving the values: Next.js inlines public variables when building. The new `vercel.json` uses `npm run build:deploy`, which checks the URL/public key before building; CI still uses `npm run build` to validate code without production credentials. The proxy returns a non-cacheable 503 and denies access if configuration is missing, rather than throwing the SDK's opaque handler error. This guard does not create configuration values, install the database migration, or replace a live authentication test.
+
+References: [Supabase Next.js setup](https://supabase.com/docs/guides/getting-started/quickstarts/nextjs), [Vercel environment variables](https://vercel.com/docs/environment-variables/managing-environment-variables).

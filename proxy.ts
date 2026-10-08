@@ -1,3 +1,7 @@
+import {
+  getSupabaseConfig,
+  SupabaseConfigurationError,
+} from "./lib/supabase-config";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -18,34 +22,42 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  let configuration: ReturnType<typeof getSupabaseConfig>;
+  try {
+    configuration = getSupabaseConfig();
+  } catch (error) {
+    if (!(error instanceof SupabaseConfigurationError)) throw error;
+    console.error(error.message);
+    // Fail closed: missing configuration must never bypass authentication.
+    return NextResponse.json(
+      { error: "Authentication is temporarily unavailable" },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(
-          cookiesToSet: {
-            name: string;
-            value: string;
-            options: CookieOptions;
-          }[],
-        ) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
-        },
+  const supabase = createServerClient(configuration.url, configuration.key, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(
+        cookiesToSet: {
+          name: string;
+          value: string;
+          options: CookieOptions;
+        }[],
+      ) {
+        cookiesToSet.forEach(({ name, value }) =>
+          request.cookies.set(name, value),
+        );
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options),
+        );
       },
     },
-  );
+  });
 
   // Also refreshes the session cookie if it's near expiry — must be called
   // even on routes that don't strictly need the result.

@@ -8,7 +8,8 @@
     "start": "next start -p 3300",
     "engine": "tsx scripts/engine.ts",
     "test": "vitest run",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "build:deploy": "node scripts/check-deploy-env.mjs && next build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
