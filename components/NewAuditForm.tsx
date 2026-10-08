@@ -53,7 +53,7 @@ export default function NewAuditForm() {
 
   return (
     <form onSubmit={submit} className="card p-6 space-y-4 animate-fade-in-up">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5">
             Niche / category

@@ -92,7 +92,7 @@ export default async function CampaignsPage({
             gets a homepage redesign mockup and a real booking link.
           </p>
           <Link
-            href="/app"
+            href="/app/audits"
             className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg"
           >
             <Megaphone className="w-3.5 h-3.5" />

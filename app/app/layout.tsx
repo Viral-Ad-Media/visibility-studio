@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Nav from "@/components/Nav";
+import WorkspaceHeader from "@/components/WorkspaceHeader";
 import db, {
   getCurrentAccountId,
   getRequestAccount,
@@ -60,9 +61,12 @@ export default async function CockpitLayout({
           trialDaysLeft={trialDaysLeft}
           isPlatformAdmin={!!admin}
         />
-        <main className="flex-1 min-w-0 p-4 md:p-8 max-w-6xl mx-auto w-full">
+        <div className="flex-1 min-w-0">
+        <WorkspaceHeader name={account.name} creditBalance={creditBalance} />
+        <main className="p-4 md:p-8 max-w-7xl mx-auto w-full">
           {children}
         </main>
+        </div>
       </div>
     </TooltipProvider>
   );
