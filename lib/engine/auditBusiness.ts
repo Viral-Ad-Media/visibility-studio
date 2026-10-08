@@ -176,11 +176,11 @@ export async function runAuditBusiness(
 
   const researchResponse = await anthropic.messages.create({
     model: ENGINE_MODEL,
-    max_tokens: 4096,
+    max_tokens: 2048,
     system: SYSTEM_PROMPT,
-    tools: RESEARCH_TOOLS,
+    tools: RESEARCH_TOOLS.map(tool => ({ ...tool, max_uses: 3 })),
     messages,
-  });
+  }, { timeout: 200000 });
   const searchCallCount = countSearchCalls(researchResponse.content);
   let estimatedCostUsd =
     estimateCost(researchResponse.usage) +
@@ -195,12 +195,12 @@ export async function runAuditBusiness(
 
   const submitResponse = await anthropic.messages.create({
     model: ENGINE_MODEL,
-    max_tokens: 2048,
+    max_tokens: 1536,
     system: SYSTEM_PROMPT,
-    tools: [...RESEARCH_TOOLS, SUBMIT_BUSINESS_TOOL],
+    tools: [SUBMIT_BUSINESS_TOOL],
     tool_choice: { type: "tool", name: "submit_business" },
     messages,
-  });
+  }, { timeout: 40000 });
 
   estimatedCostUsd += estimateCost(submitResponse.usage);
 
@@ -214,7 +214,25 @@ export async function runAuditBusiness(
     );
   }
 
-  const parsed = BusinessSubmission.parse(toolUse.input);
+  // Preserve only URLs from fetched pages or provider citations when the
+  // submission omits its required evidence list. Never manufacture sources.
+  const evidenceUrls = new Set<string>();
+  for (const block of researchResponse.content) {
+    if (block.type === "web_fetch_tool_result" && block.content.type === "web_fetch_result") {
+      evidenceUrls.add(block.content.url);
+    } else if (block.type === "text") {
+      for (const citation of block.citations ?? []) {
+        if ("url" in citation) evidenceUrls.add(citation.url);
+      }
+    }
+  }
+  const submitted = toolUse.input as Record<string, unknown>;
+  const suppliedSources = submitted.source_urls;
+  const parsed = BusinessSubmission.parse({
+    ...submitted,
+    source_urls: Array.isArray(suppliedSources) && suppliedSources.length
+      ? suppliedSources : [...evidenceUrls],
+  });
   const { source_urls, ...rest } = parsed;
   const meta: Record<string, unknown> = { ...rest };
   if (source_urls) meta.source_urls_json = JSON.stringify(source_urls);

@@ -6,7 +6,7 @@ Next.js cockpit for Supabase business audits, campaign mockups and Calendly book
 
 Use Node.js 22.12 or newer. Run `npm ci`, copy `.env.example` to `.env.local`, fill in your own credentials, and run `npm run dev`. Never commit credentials. `DATABASE_URL` must use the application database's privileged server connection; it must never be exposed to a client. Database TLS certificates are verified; provide `DATABASE_CA_CERT` when your provider requires its CA. `DATABASE_SSL=disable` is only for a local database without TLS.
 
-Run `npm test`, `npm run typecheck`, `npm run build`, and `npm audit`. CI runs these checks without live credentials. Database tests use PGlite with a representative legacy schema; they do not prove compatibility with the unexported production schema.
+Run `npm test`, `npm run typecheck`, `npm run build`, and `npm audit`. CI runs these checks without live credentials. Database tests use PGlite for both the legacy upgrade fixture and the complete fresh installer. They verify tenant isolation and the onboarding, trial, audit, campaign and worker contracts.
 
 ## Database rollout
 
@@ -17,14 +17,24 @@ The repository previously omitted its database migrations. `supabase/migrations/
 3. Apply the migration transactionally in staging. Verify owner/member separation, account switching, invitation acceptance, trial replay, paid/unpaid Stripe events, worker retries, and admission reservations against that database. Inspect `pg_net` and `pg_cron`: they must call the engine endpoint with the correct Vault secret, and the backstop must run so abandoned work is reclaimed.
 4. Pause job admission and drain old worker invocations before production migration. Apply the verified migration, then deploy this app and worker together. Old workers use the legacy claim function and lack attempt fencing; they must not overlap the new worker. Confirm provider TLS configuration and the 300-second function limit, then resume admission.
 
-The connected Supabase account available during this fix did not include Vam-dashboard. No live database migration or deployment was performed. A clean database cannot yet be provisioned solely from this repository: the historical export above remains required. Roll back the app and database together from a tested backup rather than dropping new structures with active jobs.
+### Fresh installation
+
+For an intentionally new project with no public `vis_*` tables, execute the entire `supabase/bootstrap/20261008213333_fresh_install.sql` file in the Supabase SQL Editor. It runs in one transaction and refuses existing installations. It creates all 16 application tables, parent-derived tenant IDs, membership policies, safe column grants, onboarding and trial functions, and the audited queue functions. Existing `auth.users` are preserved. It already includes the security upgrade: **do not run the legacy upgrade again**.
+
+The bootstrap is deliberately outside the legacy migration stream because that upgrade requires existing tables. Do not run bare `supabase db push` against an empty project or a bootstrapped project without first reconciling its migration history with the already-applied upgrade. Preserve the recorded bootstrap migration in any future schema/history export.
+
+On October 8, 2026, the owner authorized a fresh installation in project `nmzspgajflxbruotxoce` (visibility-studio). The installer was applied as migration `20261008213752_fresh_install`. The live database has 16 RLS-enabled tables and the original login user; an impersonated onboarding transaction succeeded and was rolled back.
+
+After installation, sign in and create a workspace. The verified owner can start a trial from Billing. No platform administrator, workspace, or paid access is seeded. Configure Anthropic, engine webhook authentication and dispatch/backstop scheduling before expecting queued work to run; Stripe and Calendly need their respective integration configuration. The bootstrap does not create provider credentials or worker scheduling.
+
+For an existing installation, follow the upgrade procedure above. Roll back the app and database together from a tested backup rather than dropping structures with active jobs.
 
 ## Behavior and operating limits
 
 - Platform authority belongs to explicitly listed users. Account owners manage invitations and removals; acceptance requires a verified email. An account cannot lose its final owner. Members cannot grant themselves ownership through the public API.
 - The account menu selects an authorized membership. Tenant queries carry that active account in their database claims. Referral names are fetched through a server query restricted to the current account's referral rows, without granting access to referred accounts.
 - Owner trials require a verified email, serialize on the account, retain user trial history, and issue starter/referral credits in one transaction. Shared-account referrals do not earn rewards. These controls do not prevent a person from registering multiple identities; production signup abuse controls remain an operator decision.
-- Queue admission checks entitlement and serializes estimated reservations per account. Reservations are $1 for discovery plus $1 per target business, $1 per redesign, and $0.10 per booking job. These are conservative admission estimates, not hard caps on provider usage. Completion deducts measured estimated cost and releases the reservation atomically. Failure releases it after five attempts. Discovery is charged even with no candidates.
+- Queue admission checks entitlement and serializes estimated reservations per account. Reservations are $1 for discovery plus $1 per target business, $1 per redesign, and $0.10 per booking job. These are conservative admission estimates, not hard caps on provider usage. Completion deducts measured estimated cost and releases the reservation atomically. Provider failures release it after two attempts; exhausted reclaimed jobs stop before making another provider call. Discovery is charged even with no candidates.
 - Claimed attempts fence all final artifact, fan-out and billing writes. Six-minute abandoned leases are reclaimed after the 300-second request limit; provider calls have explicit timeouts. A remote provider request can still repeat after a crash before its result is committed; local charges and child jobs remain idempotent. Failed provider calls may incur upstream costs without a usable result.
 - Main lists show 50 rows per page. Contacts/Emails filtering and selected CSV exports apply to the displayed page. Use pagination to browse the rest. Polling runs only for active work while the tab is visible.
 - The operator CLI requires `VIS_OPERATOR_ACCOUNT_ID`. `claim` only takes pending work and returns its attempt token. `complete` and `fail` require `--attempt`; completion metadata requires measured `estimated_cost_usd` (explicitly use `0` when no provider usage occurred). Completion uses the same transactional artifact/debit logic as the worker. CLI mutations are for a paused or supervised queue; inspection remains read-only.
@@ -47,6 +57,22 @@ References: [Supabase Next.js setup](https://supabase.com/docs/guides/getting-st
 
 Open the intended Supabase project, click **Connect**, and copy the **Transaction pooler** connection string for the serverless Vercel app. Replace the password placeholder with the database password, percent-encoding reserved characters. Save it as a **Secret** named `DATABASE_URL` in Vercel Production (and Preview if used), then rebuild. This is a PostgreSQL URI, not the Supabase HTTPS project URL, public API key, or service-role API key. Never expose it under `NEXT_PUBLIC_`. Keep verified TLS enabled; supply `DATABASE_CA_CERT` if the provider certificate needs its CA.
 
-A successful login-page render only verifies the Auth configuration path. After configuring the database, verify an authenticated dashboard request and check that the existing `vis_*` schema and audited migration are present. Do not create a replacement database or apply the upgrade to an empty schema.
+A successful login-page render only verifies the Auth configuration path. After configuring the database, verify an authenticated dashboard request and check that the existing `vis_*` schema and audited migration are present. For an authorized fresh project, use the complete bootstrap above; the legacy upgrade alone cannot initialize an empty schema.
 
 Reference: [Supabase PostgreSQL connections](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
+## Automated worker setup
+
+After the fresh bootstrap (or existing-schema upgrade), apply `supabase/migrations/20261008215237_engine_automation.sql` once. This enables pg_net and pg_cron, installs a private insert trigger and a one-minute backstop, and throttles wakeups to one every 15 seconds. Dispatch skips idle queues and missing credentials. The URL is pinned to the production Visibility Studio endpoint to prevent credential forwarding.
+
+In Vercel Production, configure `ANTHROPIC_API_KEY` and a random `ENGINE_WEBHOOK_SECRET` of at least 32 characters, then rebuild. In Supabase Vault, create `vis_engine_webhook_url` with `https://visibility-studio-tau.vercel.app/api/engine/run` and `vis_engine_webhook_secret` with the **same value** as Vercel's `ENGINE_WEBHOOK_SECRET`. Set credentials privately in the dashboards; never commit them or include them in logs. Production webhook URL was provisioned during setup; the owner must supply the matching Vault secret. Vercel Secret values cannot be retrieved after saving.
+
+Verify `cron.job`, job attempts/status and worker response codes after configuration. A scheduled run returning successfully only proves the scheduler executed; verify the HTTP response and actual queue progress separately. The automation integration test mocks pg_net and checks missing configuration, URL pinning, throttling and denied client execution.
+
+## API usage controls
+
+Business research allows at most 3 searches and 3 page fetches, with 2,048 research output tokens and 1,536 submission tokens. Discovery allows at most 4 searches. Submission uses only the findings tool, and missing source URLs can be recovered solely from provider citations or successfully fetched pages. Research and submission timeouts are 200 and 40 seconds, below the 300-second function limit. Provider failures retry at most once; jobs reclaimed after two attempts do not call providers again.
+
+Each audit stops new research once its **completed-job estimated usage** reaches $5. This is an admission safeguard, not a hard provider invoice ceiling: concurrent in-flight requests can exceed it, and failed/timed-out provider requests may be charged upstream without reported usage. The testing credit ledger is separate from actual Anthropic funds. Set an organization or non-default workspace spend limit in Claude Console for an enforced monthly ceiling; do not rely on the $500 testing balance to restrict the provider account.
+
+Fresh installations also require `20261008220320_derive_worker_job_account.sql` after the bootstrap so worker discovery can insert child jobs with ownership derived from their persisted targets. The production Vault secret is now configured and dispatch has been verified with HTTP 200 responses.

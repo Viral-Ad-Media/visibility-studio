@@ -8,7 +8,8 @@ import { safeLogAuditEvent as logAuditEvent } from "../auditLog";
 import { finishJob } from "./finish-job";
 import { upsertBusinessInTransaction } from "../business-upsert";
 
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 2;
+const AUDIT_COMPLETED_USAGE_BUDGET_USD = 5;
 
 type JobRow = {
   id: number;
@@ -367,7 +368,7 @@ async function campaignBusinessName(
   return row?.name ?? `campaign business ${campaignBusinessId}`;
 }
 
-async function failJob(job: JobRow, message: string) {
+async function failJob(job: JobRow, message: string, permanent = false) {
   const payload = (() => {
     try {
       return JSON.parse(job.payload || "{}");
@@ -388,7 +389,7 @@ async function failJob(job: JobRow, message: string) {
       current.attempts !== job.attempts
     )
       return;
-    if (job.attempts >= MAX_ATTEMPTS) {
+    if (permanent || job.attempts >= MAX_ATTEMPTS) {
       await tx
         .prepare(
           "UPDATE vis_jobs SET status='error', reserved_usd=0, result=?, updated_at=now()::text WHERE id = ? AND status='running' AND attempts = ?",
@@ -429,7 +430,7 @@ async function failJob(job: JobRow, message: string) {
         .run(message, job.id, job.attempts);
     }
   });
-  if (job.type === "audit_business" && auditId && job.attempts >= MAX_ATTEMPTS)
+  if (job.type === "audit_business" && auditId && (permanent || job.attempts >= MAX_ATTEMPTS))
     await maybeFinalizeAudit(auditId);
 }
 
@@ -463,6 +464,23 @@ export async function runWorkerLoop(): Promise<{ processed: number }> {
   if (!job) return { processed: 0 };
 
   try {
+    // Do not spend on a reclaimed job that has exhausted the provider retry cap.
+    if (job.attempts > MAX_ATTEMPTS) {
+      await failJob(job, "Provider retry limit reached", true);
+      return { processed: 0 };
+    }
+    if (job.type === "run_audit" || job.type === "audit_business") {
+      const auditId = Number(JSON.parse(job.payload).audit_id);
+      const usage = await db.prepare(`SELECT COALESCE(SUM(
+        CASE WHEN status='done' THEN COALESCE((result::json->>'estimated_cost_usd')::numeric,0) ELSE 0 END
+      ),0) AS spent FROM vis_jobs WHERE account_id=? AND type IN ('run_audit','audit_business')
+        AND (payload::json->>'audit_id')::bigint=?`).get(job.account_id,auditId);
+      if (!usage) throw new Error("Cannot verify audit usage budget");
+      if (Number(usage.spent) >= AUDIT_COMPLETED_USAGE_BUDGET_USD) {
+        await failJob(job, "Audit completed-usage budget reached ($5); remaining research stopped", true);
+        return { processed: 0 };
+      }
+    }
     if (job.type === "run_audit") {
       await processRunAudit(job);
     } else if (job.type === "audit_business") {
