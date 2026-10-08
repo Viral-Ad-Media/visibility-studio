@@ -6,7 +6,7 @@ Next.js cockpit for Supabase business audits, campaign mockups and Calendly book
 
 Use Node.js 22.12 or newer. Run `npm ci`, copy `.env.example` to `.env.local`, fill in your own credentials, and run `npm run dev`. Never commit credentials. `DATABASE_URL` must use the application database's privileged server connection; it must never be exposed to a client. Database TLS certificates are verified; provide `DATABASE_CA_CERT` when your provider requires its CA. `DATABASE_SSL=disable` is only for a local database without TLS.
 
-Run `npm test`, `npm run typecheck`, `npm run build`, and `npm audit`. CI runs these checks without live credentials. Database tests use PGlite with a representative legacy schema; they do not prove compatibility with the unexported production schema.
+Run `npm test`, `npm run typecheck`, `npm run build`, and `npm audit`. CI runs these checks without live credentials. Database tests use PGlite for both the legacy upgrade fixture and the complete fresh installer. They verify tenant isolation and the onboarding, trial, audit, campaign and worker contracts.
 
 ## Database rollout
 
@@ -17,7 +17,17 @@ The repository previously omitted its database migrations. `supabase/migrations/
 3. Apply the migration transactionally in staging. Verify owner/member separation, account switching, invitation acceptance, trial replay, paid/unpaid Stripe events, worker retries, and admission reservations against that database. Inspect `pg_net` and `pg_cron`: they must call the engine endpoint with the correct Vault secret, and the backstop must run so abandoned work is reclaimed.
 4. Pause job admission and drain old worker invocations before production migration. Apply the verified migration, then deploy this app and worker together. Old workers use the legacy claim function and lack attempt fencing; they must not overlap the new worker. Confirm provider TLS configuration and the 300-second function limit, then resume admission.
 
-The connected Supabase account available during this fix did not include Vam-dashboard. No live database migration or deployment was performed. A clean database cannot yet be provisioned solely from this repository: the historical export above remains required. Roll back the app and database together from a tested backup rather than dropping new structures with active jobs.
+### Fresh installation
+
+For an intentionally new project with no public `vis_*` tables, execute the entire `supabase/bootstrap/20261008213333_fresh_install.sql` file in the Supabase SQL Editor. It runs in one transaction and refuses existing installations. It creates all 16 application tables, parent-derived tenant IDs, membership policies, safe column grants, onboarding and trial functions, and the audited queue functions. Existing `auth.users` are preserved. It already includes the security upgrade: **do not run the legacy upgrade again**.
+
+The bootstrap is deliberately outside the legacy migration stream because that upgrade requires existing tables. Do not run bare `supabase db push` against an empty project or a bootstrapped project without first reconciling its migration history with the already-applied upgrade. Preserve the recorded bootstrap migration in any future schema/history export.
+
+On October 8, 2026, the owner authorized a fresh installation in project `nmzspgajflxbruotxoce` (visibility-studio). The installer was applied as migration `20261008213752_fresh_install`. The live database has 16 RLS-enabled tables and the original login user; an impersonated onboarding transaction succeeded and was rolled back.
+
+After installation, sign in and create a workspace. The verified owner can start a trial from Billing. No platform administrator, workspace, or paid access is seeded. Configure Anthropic, engine webhook authentication and dispatch/backstop scheduling before expecting queued work to run; Stripe and Calendly need their respective integration configuration. The bootstrap does not create provider credentials or worker scheduling.
+
+For an existing installation, follow the upgrade procedure above. Roll back the app and database together from a tested backup rather than dropping structures with active jobs.
 
 ## Behavior and operating limits
 
@@ -47,6 +57,6 @@ References: [Supabase Next.js setup](https://supabase.com/docs/guides/getting-st
 
 Open the intended Supabase project, click **Connect**, and copy the **Transaction pooler** connection string for the serverless Vercel app. Replace the password placeholder with the database password, percent-encoding reserved characters. Save it as a **Secret** named `DATABASE_URL` in Vercel Production (and Preview if used), then rebuild. This is a PostgreSQL URI, not the Supabase HTTPS project URL, public API key, or service-role API key. Never expose it under `NEXT_PUBLIC_`. Keep verified TLS enabled; supply `DATABASE_CA_CERT` if the provider certificate needs its CA.
 
-A successful login-page render only verifies the Auth configuration path. After configuring the database, verify an authenticated dashboard request and check that the existing `vis_*` schema and audited migration are present. Do not create a replacement database or apply the upgrade to an empty schema.
+A successful login-page render only verifies the Auth configuration path. After configuring the database, verify an authenticated dashboard request and check that the existing `vis_*` schema and audited migration are present. For an authorized fresh project, use the complete bootstrap above; the legacy upgrade alone cannot initialize an empty schema.
 
 Reference: [Supabase PostgreSQL connections](https://supabase.com/docs/guides/database/connecting-to-postgres).
