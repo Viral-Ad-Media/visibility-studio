@@ -4,6 +4,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { Pool, types } from "pg";
 import { supabaseServerClient } from "./supabase-server";
+import { validateDatabaseUrl } from "./database-config-validation.mjs";
 
 // Next.js auto-loads .env.local for `next dev`/`build`/`start`, but the
 // standalone `tsx scripts/engine.ts` CLI has no such magic — load it here,
@@ -85,22 +86,27 @@ types.setTypeParser(20, (val) => parseInt(val, 10));
 // mini-transaction (BEGIN..COMMIT) instead of one bare pool.query() call —
 // more reason to keep this conservative. Safe to raise once/if the app is
 // pointed back at the pooler.
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl:
-    process.env.DATABASE_SSL === "disable"
-      ? false
-      : {
-          rejectUnauthorized: true,
-          ...(process.env.DATABASE_CA_CERT
-            ? { ca: process.env.DATABASE_CA_CERT }
-            : {}),
-        },
-  connectionTimeoutMillis: 10000,
-  idleTimeoutMillis: 30000,
-  statement_timeout: 30000,
-  max: 3,
-});
+let pool: Pool | undefined;
+function getPool(): Pool {
+  if (pool) return pool;
+  pool = new Pool({
+    connectionString: validateDatabaseUrl(process.env.DATABASE_URL),
+    ssl:
+      process.env.DATABASE_SSL === "disable"
+        ? false
+        : {
+            rejectUnauthorized: true,
+            ...(process.env.DATABASE_CA_CERT
+              ? { ca: process.env.DATABASE_CA_CERT }
+              : {}),
+          },
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    statement_timeout: 30000,
+    max: 3,
+  });
+  return pool;
+}
 
 type Row = Record<string, any>;
 type RunResult = { changes: number; lastInsertRowid: number | undefined };
@@ -252,7 +258,7 @@ function getRequestUserId(): Promise<string> {
 export const getRequestAccount = cache(async () => {
   const userId = await getRequestUserId();
   const requested = Number((await cookies()).get("vis_account_id")?.value);
-  const memberships = await pool.query(
+  const memberships = await getPool().query(
     "SELECT account_id, role FROM vis_account_users WHERE user_id = $1 ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END, account_id",
     [userId],
   );
@@ -280,7 +286,7 @@ async function setImpersonation(
 
 const impersonatedQuery: QueryFn = async (text, values) => {
   const context = await getRequestAccount();
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query("BEGIN");
     await setImpersonation(client, context);
@@ -297,7 +303,7 @@ const impersonatedQuery: QueryFn = async (text, values) => {
 
 const impersonatedBeginTx: BeginTx = async (fn) => {
   const context = await getRequestAccount();
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query("BEGIN");
     await setImpersonation(client, context);
@@ -321,10 +327,10 @@ export default db;
 // contexts with no browser session (background jobs, the local engine CLI).
 // Callers own their own tenant scoping. ---
 
-const serviceQuery: QueryFn = (text, values) => pool.query(text, values);
+const serviceQuery: QueryFn = async (text, values) => getPool().query(text, values);
 
 const serviceBeginTx: BeginTx = async (fn) => {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query("BEGIN");
     const txQuery: QueryFn = (text, values) => client.query(text, values);
