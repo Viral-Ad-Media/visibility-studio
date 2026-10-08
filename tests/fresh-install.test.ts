@@ -19,6 +19,7 @@ beforeAll(async()=>{
  GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO authenticated,anon;
  INSERT INTO auth.users VALUES('${owner}','owner@example.com',now()),('${other}','other@example.com',now());`);
  await pg.exec(readFileSync('supabase/bootstrap/20261008213333_fresh_install.sql','utf8'));
+ await pg.exec(readFileSync('supabase/migrations/20261008220320_derive_worker_job_account.sql','utf8')); 
 });
 afterAll(async()=>{await pg?.close();});
 it('supports fresh onboarding, trial, audit, campaign and job creation with tenant isolation',async()=>{
@@ -52,6 +53,9 @@ it('supports fresh onboarding, trial, audit, campaign and job creation with tena
  await expect(pg.query("INSERT INTO vis_campaigns(audit_id,name) VALUES($1,'Foreign')",[audit])).rejects.toThrow('parent_not_found');
  await expect(pg.query("SELECT vis_enqueue_job_guarded('run_audit',$1)",[audit])).rejects.toThrow('unauthorized');
  await pg.exec('RESET ROLE');
+ const child=(await pg.query("INSERT INTO vis_jobs(type,payload,reserved_usd) VALUES('audit_business',$1,1) RETURNING account_id",[JSON.stringify({audit_id:audit,name:'Business',parent_job_id:1})])).rows;
+ expect(child).toEqual([{account_id:aid}]);
+ await expect(pg.query("INSERT INTO vis_jobs(account_id,type,payload) VALUES($1,'audit_business',$2)",[bid,JSON.stringify({audit_id:audit})])).rejects.toThrow('job_account_mismatch');
  expect((await pg.query('SELECT * FROM vis_claim_job_v2()')).rows).toHaveLength(1);
  await expect(pg.exec(readFileSync('supabase/bootstrap/20261008213333_fresh_install.sql','utf8'))).rejects.toThrow('Existing Visibility Studio tables');
  await pg.exec('ROLLBACK');
