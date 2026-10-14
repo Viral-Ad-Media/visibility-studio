@@ -1,0 +1,28 @@
+# Keep the build context small and never ship secrets or local state into it.
+node_modules
+.next
+.git
+.gitignore
+.claude
+.github
+.trigger
+data
+supabase/.temp
+tests
+vitest.config.mts
+*.tsbuildinfo
+.DS_Store
+npm-debug.log*
+
+# Docs — not needed to build the app
+*.md
+
+# env files: secrets are passed at runtime (--env-file), public values as
+# build args — never COPY'd into an image layer.
+.env
+.env.*
+!.env.example
+
+Dockerfile
+docker-compose.yml
+.dockerignore

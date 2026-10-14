@@ -1,0 +1,23 @@
+# Local / self-hosted run of the app in Docker.
+#
+#   cp .env.example .env   # fill in values
+#   docker compose up --build
+#
+# Compose reads .env twice: for the ${...} interpolation below (the public
+# build args Next inlines at build time) and, via env_file, as the container's
+# runtime environment (the secrets). Set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+# or, for a legacy project, NEXT_PUBLIC_SUPABASE_ANON_KEY — one of the two.
+services:
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set NEXT_PUBLIC_SUPABASE_URL in .env}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3300}
+    image: visibility-studio
+    env_file: .env
+    ports:
+      - "3300:3300"
+    restart: unless-stopped
