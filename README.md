@@ -50,3 +50,20 @@ Open the intended Supabase project, click **Connect**, and copy the **Transactio
 A successful login-page render only verifies the Auth configuration path. After configuring the database, verify an authenticated dashboard request and check that the existing `vis_*` schema and audited migration are present. Do not create a replacement database or apply the upgrade to an empty schema.
 
 Reference: [Supabase PostgreSQL connections](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
+## Running in Docker
+
+`Dockerfile` builds a production image from Next's standalone output: multi-stage, about 340 MB, runs as the unprivileged `node` user, with a health check on `/`. Public `NEXT_PUBLIC_*` values are **build args**, because Next inlines them into the bundle at build time (the same rule as on Vercel); everything secret is **runtime-only** and never lands in an image layer.
+
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co \
+  --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_... \
+  --build-arg NEXT_PUBLIC_SITE_URL=https://your-host \
+  -t visibility-studio .
+docker run --env-file .env -p 3300:3300 visibility-studio
+```
+
+Or copy `.env.example` to `.env`, fill it in, and run `docker compose up --build`; Compose reads `.env` for both the build args and the runtime environment. The image serves the marketing site with no database configured at all; `/app/*` and `/api/*` need `DATABASE_URL` and the other runtime variables from `.env.example`. The build runs plain `npm run build` (as CI does), not `build:deploy`, since that script also requires `DATABASE_URL` at build time.
+
+Vercel deployments are unaffected: `output: "standalone"` is enabled only when `NEXT_OUTPUT=standalone`, which only the Dockerfile sets. If the container is meant to run the automated engine, the Supabase `pg_net` trigger and `pg_cron` backstop must point at the container's public URL (the `vis_engine_webhook_url` Vault secret) and `ENGINE_WEBHOOK_SECRET` must match.
