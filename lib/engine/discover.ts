@@ -18,7 +18,7 @@ business already listed as already covered. When you have enough candidates, sub
 submit_candidates — do not keep searching past that.`;
 
 const DISCOVERY_TOOLS: Anthropic.Messages.ToolUnion[] = [
-  { type: "web_search_20260318", name: "web_search", max_uses: 10 },
+  { type: "web_search_20260318", name: "web_search", max_uses: 4 },
 ];
 
 const SUBMIT_CANDIDATES_TOOL: Anthropic.Messages.Tool = {
@@ -101,7 +101,7 @@ export async function discoverCandidates(
 
   const discoverResponse = await anthropic.messages.create({
     model: ENGINE_MODEL,
-    max_tokens: 4096,
+    max_tokens: 2048,
     system: DISCOVERY_SYSTEM_PROMPT,
     tools: DISCOVERY_TOOLS,
     messages,
