@@ -37,6 +37,12 @@ export default async function LoginPage({
           Password
         </label>
         <PasswordInput className={input} name="password" required />
+        <Link
+          href="/forgot-password"
+          className="mt-1.5 inline-block text-xs text-indigo-400 hover:underline"
+        >
+          Forgot password?
+        </Link>
       </div>
       <button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
         Log in

@@ -37,8 +37,11 @@
     --slate-200: 226 232 240;
     --slate-300: 203 213 225;
     --slate-400: 148 163 184;
-    --slate-500: 100 116 139;
-    --slate-600: 71 85 105;
+    /* 500/600 are lifted from Tailwind's defaults (100 116 139 / 71 85 105),
+       which fell below WCAG AA's 4.5:1 for body text on these surfaces. Both
+       now clear 4.5:1 on ink-950 through ink-800, inputs included. */
+    --slate-500: 128 142 165;
+    --slate-600: 122 136 160;
     --slate-700: 51 65 85;
     --slate-800: 30 41 59;
     --slate-900: 15 23 42;
@@ -95,8 +98,9 @@
     --slate-200: 30 41 59;
     --slate-300: 51 65 85;
     --slate-400: 71 85 105;
-    --slate-500: 100 116 139;
-    --slate-600: 148 163 184;
+    /* darkened so muted text and placeholders keep 4.5:1 on light surfaces */
+    --slate-500: 85 99 121;
+    --slate-600: 94 108 130;
     --slate-700: 203 213 225;
     --slate-800: 226 232 240;
     --slate-900: 241 245 249;
