@@ -18,6 +18,9 @@ export default function MarketingFooter() {
           <Link href="/terms" className="hover:text-slate-300">
             Terms
           </Link>
+          <Link href="/privacy" className="hover:text-slate-300">
+            Privacy
+          </Link>
         </div>
       </div>
     </footer>

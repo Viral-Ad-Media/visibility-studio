@@ -10,10 +10,31 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const description =
+  "Turn any local-business niche into a scored prospect list with ready-to-send outreach — visibility audits, homepage redesign concepts, and booking links, generated for you.";
+
+// Absolute URLs for the social-share image need a base. A missing or
+// malformed NEXT_PUBLIC_SITE_URL just falls back to localhost rather than
+// failing the build.
+function siteUrl(): URL {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "");
+  } catch {
+    return new URL("http://localhost:3300");
+  }
+}
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl(),
   title: "Visibility Studio",
-  description:
-    "Turn any local-business niche into a scored prospect list with ready-to-send outreach — visibility audits, homepage redesign concepts, and booking links, generated for you.",
+  description,
+  openGraph: {
+    type: "website",
+    siteName: "Visibility Studio",
+    title: "Visibility Studio",
+    description,
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 // Fonts + the <html>/<body> shell live here so both the public marketing

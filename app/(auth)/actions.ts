@@ -56,6 +56,70 @@ export async function signup(formData: FormData) {
   redirect(`/onboarding${refQuery}`);
 }
 
+export async function requestPasswordReset(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim();
+  // The link lands on /auth/confirm, which turns it into a session and then
+  // sends the user on to /reset-password to pick a new password. That URL
+  // must be in Supabase Auth's allowed redirect URLs.
+  const { error } = await (
+    await supabaseServerClient()
+  ).auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm?next=/reset-password`,
+  });
+  // Rate limits are worth surfacing; everything else gets the same reply
+  // whether or not the address has an account, so the form can't be used
+  // to find out who has signed up.
+  if (error && error.status === 429) {
+    redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`);
+  }
+  redirect("/forgot-password?sent=1");
+}
+
+export async function resetPassword(formData: FormData) {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirm_password") ?? "");
+
+  if (password.length < 8) {
+    redirect(
+      "/reset-password?error=" +
+        encodeURIComponent("Password must be at least 8 characters"),
+    );
+  }
+  if (password !== confirmPassword) {
+    redirect(
+      "/reset-password?error=" + encodeURIComponent("Passwords don't match"),
+    );
+  }
+
+  const client = await supabaseServerClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) {
+    redirect(
+      "/forgot-password?error=" +
+        encodeURIComponent("That reset link has expired. Request a new one."),
+    );
+  }
+
+  const { error } = await client.auth.updateUser({ password });
+  if (error) {
+    redirect("/reset-password?error=" + encodeURIComponent(error.message));
+  }
+
+  const accountId = await getCurrentAccountId().catch(() => null);
+  if (accountId) {
+    await logAuditEvent(
+      accountId,
+      "password_changed",
+      `${user.email ?? "Someone"} reset their password`,
+      user.email ?? null,
+    );
+  }
+
+  redirect("/app/settings?password_changed=1");
+}
+
 export async function logout() {
   await (await supabaseServerClient()).auth.signOut();
   redirect("/");

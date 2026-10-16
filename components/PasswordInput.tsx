@@ -7,11 +7,13 @@ export default function PasswordInput({
   name,
   required,
   minLength,
+  autoComplete,
   className,
 }: {
   name: string;
   required?: boolean;
   minLength?: number;
+  autoComplete?: string;
   className: string;
 }) {
   const [visible, setVisible] = useState(false);
@@ -23,6 +25,7 @@ export default function PasswordInput({
         name={name}
         required={required}
         minLength={minLength}
+        autoComplete={autoComplete}
       />
       <button
         type="button"

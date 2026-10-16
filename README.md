@@ -51,6 +51,10 @@ Redeploy with a new build after saving the values: Next.js inlines public variab
 
 References: [Supabase Next.js setup](https://supabase.com/docs/guides/getting-started/quickstarts/nextjs), [Vercel environment variables](https://vercel.com/docs/environment-variables/managing-environment-variables).
 
+### Password reset links
+
+`/forgot-password` sends a Supabase reset email whose link lands on `/auth/confirm?next=/reset-password`. Supabase only follows redirects it trusts: in the Supabase dashboard under Authentication → URL Configuration, set the Site URL to the production domain and add `https://<your-domain>/auth/confirm**` to the Redirect URLs. `NEXT_PUBLIC_SITE_URL` must be set to that same domain, because it builds the link. The default link uses PKCE, so it only works in the browser that requested it; a custom email template using `{{ .TokenHash }}` (`/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password`) works from any browser.
+
 ## PostgreSQL configuration on Vercel
 
 `connect ECONNREFUSED 127.0.0.1:5432` means the database client is trying a local PostgreSQL server. When `DATABASE_URL` is missing, `pg` falls back to its default connection settings; Vercel does not run the application database on localhost. The app now validates the connection string before creating a pool, and deployment preflight rejects missing or malformed values without printing credentials. Pool creation is lazy so credential-free CI builds still work.
