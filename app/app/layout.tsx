@@ -52,7 +52,7 @@ export default async function CockpitLayout({
     .get(userId);
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider>
       <div className="flex flex-col md:flex-row min-h-screen">
         <Nav
           creditBalance={creditBalance}

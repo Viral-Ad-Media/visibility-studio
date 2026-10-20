@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Moon, Sun } from "lucide-react";
 import { THEME_STORAGE_KEY, type Theme } from "@/lib/theme";
 
@@ -45,7 +46,8 @@ export default function ThemeToggle({
     );
 
   return (
-    <button
+    <Button
+      variant="ghost"
       type="button"
       onClick={() => {
         // Read the live class, not `theme` state, so rapid clicks can't act on a stale value.
@@ -57,12 +59,12 @@ export default function ThemeToggle({
       title={label}
       className={
         variant === "row"
-          ? `w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-ink-800 hover:text-slate-200 ${className}`
-          : `inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-ink-800 transition-colors ${className}`
+          ? `h-auto justify-start w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-ink-800 hover:text-slate-200 ${className}`
+          : `inline-flex items-center justify-center w-11 h-11 p-0 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-ink-800 transition-colors ${className}`
       }
     >
       {icon}
       {variant === "row" && (theme === null ? "Theme" : theme === "light" ? "Dark mode" : "Light mode")}
-    </button>
+    </Button>
   );
 }

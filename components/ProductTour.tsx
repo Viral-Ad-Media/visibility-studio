@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 
 const STORAGE_KEY = "vis_product_tour_dismissed";
@@ -90,22 +91,25 @@ export default function ProductTour() {
   return (
     <>
       <div
-        className="fixed z-40 rounded-lg ring-2 ring-indigo-500 ring-offset-2 ring-offset-ink-950 pointer-events-none transition-all duration-200"
+        className="fixed z-40 rounded-lg ring-2 ring-indigo-500 ring-offset-2 ring-offset-ink-950 pointer-events-none"
         style={{ top: rect.top - 4, left: rect.left - 4, width: rect.width + 8, height: rect.height + 8 }}
       />
       <div
-        className="fixed z-40 w-72 card p-4 shadow-xl border-indigo-600/40 transition-all duration-200"
+        className="fixed z-40 w-72 card p-4 shadow-xl border-indigo-600/40"
         style={{ top, left }}
       >
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <h3 className="text-sm font-semibold text-slate-100">{step.title}</h3>
-          <button
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
             onClick={dismiss}
             className="text-slate-500 hover:text-slate-300 shrink-0"
             aria-label="Skip tour"
           >
             <X className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed mb-3">{step.body}</p>
         <div className="flex items-center justify-between">
@@ -114,19 +118,24 @@ export default function ProductTour() {
           </span>
           <div className="flex items-center gap-2">
             {stepIndex > 0 && (
-              <button
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
                 onClick={() => setStepIndex((i) => (i ?? 1) - 1)}
                 className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1"
               >
                 Back
-              </button>
+              </Button>
             )}
-            <button
+            <Button
+              type="button"
+              size="sm"
               onClick={() => (isLast ? dismiss() : setStepIndex((i) => (i ?? 0) + 1))}
               className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3 py-1.5 rounded-lg"
             >
               {isLast ? "Done" : "Next"}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

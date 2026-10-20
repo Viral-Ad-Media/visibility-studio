@@ -14,7 +14,7 @@ export default function CalendlyConnect({
   const justConnected = params.get("calendly_connected");
 
   return (
-    <div className="card p-6 space-y-3 animate-fade-in-up">
+    <div className="card p-6 space-y-3">
       <div>
         <h2 className="text-sm font-medium text-slate-200">Calendly</h2>
         <p className="text-[11px] text-slate-600 mt-1">

@@ -48,7 +48,7 @@ export default async function EmailsPage({
       </div>
 
       {contacts.length === 0 ? (
-        <div className="card p-10 text-center animate-fade-in-up">
+        <div className="card p-10 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-ink-700 bg-ink-800">
             <Send className="h-5 w-5 text-indigo-400" />
           </div>

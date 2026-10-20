@@ -13,7 +13,7 @@ export default async function SignupPage({
 }) {
   const searchParams = await searchParamsPromise;
   return (
-    <form action={signup} className="card p-6 space-y-4 animate-fade-in-up">
+    <form action={signup} className="card p-6 space-y-4">
       <h1 className="text-lg font-semibold text-slate-100">
         Create your account
       </h1>
