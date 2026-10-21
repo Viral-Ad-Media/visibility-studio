@@ -60,7 +60,7 @@ const SECTIONS = [
 
 export default function TermsPage() {
   return (
-    <div className="max-w-2xl mx-auto px-6 py-20">
+    <div className="max-w-[35rem] mx-auto px-4 sm:px-6 py-16 sm:py-20">
       <h1 className="text-3xl font-bold text-slate-100">Terms &amp; Conditions</h1>
       <div className="mt-4 text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3">
         Template draft — replace the bracketed placeholders with your real

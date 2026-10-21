@@ -6,6 +6,9 @@ import AutoRefresh from "@/components/AutoRefresh";
 import BusinessTable from "@/components/BusinessTable";
 import RequeueButton from "@/components/RequeueButton";
 import AuditActions from "@/components/AuditActions";
+import StatusBadge from "@/components/StatusBadge";
+import { ArrowLeft, Download } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 
 // summary_md interpolates business names the engine scraped from third-party
 // sites, and marked passes raw HTML straight through — escape it first so a
@@ -23,12 +26,6 @@ function escapeHtml(s: string): string {
 
 export const dynamic = "force-dynamic";
 
-const STATUS_STYLES: Record<string, string> = {
-  queued: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  running: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
-  ready: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-  error: "bg-red-500/10 text-red-400 border-red-500/30",
-};
 
 export default async function AuditPage({
   params,
@@ -60,15 +57,16 @@ export default async function AuditPage({
   return (
     <div>
       {inProgress && <AutoRefresh />}
-      <div className="flex items-start justify-between gap-4 mb-1">
-        <div>
-          <Link
-            href="/app"
-            className="text-xs text-slate-500 hover:text-slate-300"
-          >
-            ← All audits
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-100 mt-1">
+      <Link
+        href="/app"
+        className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        All audits
+      </Link>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mt-1 mb-1">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-slate-100">
             {audit.query}
           </h1>
           <div className="text-xs text-slate-500 mt-1">
@@ -83,17 +81,14 @@ export default async function AuditPage({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span
-            className={`text-xs px-2.5 py-1 rounded-full border ${STATUS_STYLES[audit.status]}`}
-          >
-            {audit.status}
-          </span>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <StatusBadge status={audit.status} />
           {businesses.length > 0 && (
             <a
               href={`/api/audits/${audit.id}/csv`}
-              className="text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-3 py-1.5 rounded-lg"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
             >
+              <Download />
               Export CSV
             </a>
           )}
@@ -121,13 +116,19 @@ export default async function AuditPage({
       )}
 
       {audit.status === "error" && audit.error && (
-        <div className="mt-4 card border-red-500/30 p-4 text-sm text-red-400">
+        <div
+          role="alert"
+          className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300"
+        >
           {audit.error}
         </div>
       )}
 
       {inProgress && businesses.length === 0 && (
-        <div className="mt-6 card p-10 text-center text-slate-400 text-sm">
+        <div
+          role="status"
+          className="mt-6 card p-10 text-center text-slate-400 text-sm"
+        >
           {audit.status === "queued"
             ? "Waiting for the engine to pick this up — starts automatically, usually within a minute."
             : "The engine is researching businesses… results appear here as each audit lands."}
@@ -136,7 +137,7 @@ export default async function AuditPage({
 
       {audit.summary_md && (
         <div className="mt-6 card p-6">
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">
+          <h2 className="text-base font-semibold text-slate-100 mb-2">
             Engine summary
           </h2>
           <div

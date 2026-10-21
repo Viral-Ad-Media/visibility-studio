@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { login } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
-
-const input =
-  "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-  "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30";
+import { Field, FormMessage, inputClass as input } from "@/components/ui/field";
+import { buttonVariants } from "@/components/ui/button";
 
 export default async function LoginPage({
   searchParams: searchParamsPromise,
@@ -18,25 +16,33 @@ export default async function LoginPage({
       <input type="hidden" name="next" value={searchParams.next ?? "/app"} />
 
       {searchParams.checkEmail && (
-        <p className="text-sm text-emerald-400">
+        <FormMessage tone="success">
           Check your email to confirm your account, then log in.
-        </p>
+        </FormMessage>
       )}
       {searchParams.error && (
-        <p className="text-sm text-red-400">{searchParams.error}</p>
+        <FormMessage>{searchParams.error}</FormMessage>
       )}
 
+      <Field label="Email">
+        <input
+          className={input}
+          type="email"
+          name="email"
+          autoComplete="email"
+          required
+          autoFocus
+        />
+      </Field>
       <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          Email
-        </label>
-        <input className={input} type="email" name="email" required autoFocus />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          Password
-        </label>
-        <PasswordInput className={input} name="password" required />
+        <Field label="Password">
+          <PasswordInput
+            className={input}
+            name="password"
+            autoComplete="current-password"
+            required
+          />
+        </Field>
         <Link
           href="/forgot-password"
           className="mt-1.5 inline-block text-xs text-indigo-400 hover:underline"
@@ -44,7 +50,7 @@ export default async function LoginPage({
           Forgot password?
         </Link>
       </div>
-      <button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
+      <button className={buttonVariants({ size: "lg", className: "w-full" })}>
         Log in
       </button>
       <p className="text-xs text-slate-500 text-center">

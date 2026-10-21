@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { SearchCheck, Megaphone, Sparkles } from "lucide-react";
 import { createAccount } from "../actions";
-
-const input =
-  "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-  "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30";
+import { Field, FormMessage, inputClass as input } from "@/components/ui/field";
+import { buttonVariants } from "@/components/ui/button";
 
 // A lightweight 2-step flow via ?step= rather than client-side state — this
 // app is server-rendered-first (no other auth page needs a client
@@ -21,7 +19,7 @@ export default async function OnboardingPage({
         action={createAccount}
         className="card p-6 space-y-4"
       >
-        <div className="text-[11px] text-slate-600 mb-1">Step 2 of 2</div>
+        <div className="text-xs text-slate-500 mb-1">Step 2 of 2</div>
         <h1 className="text-lg font-semibold text-slate-100">
           Name your account
         </h1>
@@ -29,16 +27,13 @@ export default async function OnboardingPage({
           This is the workspace your audits and campaigns will live under.
         </p>
         {searchParams.error && (
-          <p className="text-sm text-red-400">{searchParams.error}</p>
+          <FormMessage>{searchParams.error}</FormMessage>
         )}
         {searchParams.ref && (
           <input type="hidden" name="ref" value={searchParams.ref} />
         )}
 
-        <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">
-            Account name
-          </label>
+        <Field label="Account name">
           <input
             className={input}
             type="text"
@@ -47,8 +42,8 @@ export default async function OnboardingPage({
             required
             autoFocus
           />
-        </div>
-        <button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
+        </Field>
+        <button className={buttonVariants({ size: "lg", className: "w-full" })}>
           Create account
         </button>
       </form>
@@ -57,7 +52,7 @@ export default async function OnboardingPage({
 
   return (
     <div className="card p-6 space-y-5">
-      <div className="text-[11px] text-slate-600">Step 1 of 2</div>
+      <div className="text-xs text-slate-500">Step 1 of 2</div>
       <div>
         <h1 className="text-lg font-semibold text-slate-100 mb-1">
           Welcome to Visibility Studio
@@ -102,7 +97,7 @@ export default async function OnboardingPage({
       </ul>
       <Link
         href={`/onboarding?step=2${searchParams.ref ? `&ref=${encodeURIComponent(searchParams.ref)}` : ""}`}
-        className="block w-full text-center bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+        className={buttonVariants({ size: "lg", className: "w-full" })}
       >
         Continue
       </Link>

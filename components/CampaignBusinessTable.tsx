@@ -15,12 +15,8 @@ import {
 import type { CampaignBusinessRow } from "@/lib/shared";
 import { CAMPAIGN_STAGES } from "@/lib/shared";
 import StatusSelect from "@/components/StatusSelect";
+import StatusBadge from "@/components/StatusBadge";
 
-const PRIORITY_STYLES: Record<string, string> = {
-  High: "bg-red-500/10 text-red-400 border-red-500/30",
-  Medium: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  Low: "bg-slate-500/10 text-slate-400 border-slate-500/30",
-};
 
 const JOB_STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-500/10 text-amber-400 border-amber-500/30",
@@ -32,9 +28,11 @@ const JOB_STATUS_STYLES: Record<string, string> = {
 function JobBadge({ label, status }: { label: string; status: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border ${JOB_STATUS_STYLES[status]}`}
+      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${JOB_STATUS_STYLES[status]}`}
     >
-      {status === "running" && <Loader2 className="w-3 h-3 animate-spin" />}
+      {status === "running" && (
+        <Loader2 className="w-3 h-3 motion-safe:animate-spin" />
+      )}
       {label}: {status}
     </span>
   );
@@ -152,30 +150,28 @@ function Row({ r }: { r: CampaignBusinessRow }) {
   return (
     <div className="card overflow-hidden">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 p-4 text-left hover:bg-ink-800/50"
+        aria-expanded={open}
+        className="w-full flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 p-4 text-left hover:bg-ink-800/50"
       >
         {open ? (
           <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
         ) : (
           <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
         )}
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-slate-100 truncate">{r.name}</div>
+        <div className="flex-1 min-w-[10rem]">
+          <div className="font-medium text-slate-100 line-clamp-2 sm:truncate">{r.name}</div>
           <div className="text-xs text-slate-500 truncate">
             {[r.category, r.location].filter(Boolean).join(" · ")}
           </div>
         </div>
-        <div className="hidden md:flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <JobBadge label="Mockup" status={r.redesign_status} />
           <JobBadge label="Link" status={r.booking_status} />
         </div>
         {r.priority && (
-          <span
-            className={`text-xs px-2.5 py-1 rounded-full border shrink-0 ${PRIORITY_STYLES[r.priority]}`}
-          >
-            {r.priority}
-          </span>
+          <StatusBadge status={r.priority} />
         )}
       </button>
 
@@ -207,8 +203,11 @@ function Row({ r }: { r: CampaignBusinessRow }) {
               <span className="text-xs text-slate-400">{r.phone}</span>
             )}
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-[11px] text-slate-500">Stage</span>
+              <span className="text-xs text-slate-500" aria-hidden>
+                Stage
+              </span>
               <StatusSelect
+                label={`Pipeline stage for ${r.name}`}
                 value={r.stage}
                 options={CAMPAIGN_STAGES}
                 disabled={saving}
@@ -220,7 +219,7 @@ function Row({ r }: { r: CampaignBusinessRow }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-ink-950 border border-ink-700 rounded-lg p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wide">
+                <div className="text-xs font-semibold text-slate-300">
                   Redesign mockup
                 </div>
                 <JobBadge label="Mockup" status={r.redesign_status} />
@@ -252,7 +251,7 @@ function Row({ r }: { r: CampaignBusinessRow }) {
 
             <div className="bg-ink-950 border border-ink-700 rounded-lg p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wide">
+                <div className="text-xs font-semibold text-slate-300">
                   Booking link
                 </div>
                 <JobBadge label="Link" status={r.booking_status} />
@@ -271,7 +270,7 @@ function Row({ r }: { r: CampaignBusinessRow }) {
                 </div>
               )}
               {r.booking_event_type && (
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   Event type: {r.booking_event_type}
                 </div>
               )}
@@ -292,7 +291,7 @@ function Row({ r }: { r: CampaignBusinessRow }) {
           {readyToSendEmail && (
             <div className="bg-ink-950 border border-ink-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wide">
+                <div className="text-xs font-semibold text-slate-300">
                   Ready-to-send email
                   {r.booking_status !== "ready" && (
                     <span className="text-slate-500 normal-case font-normal">

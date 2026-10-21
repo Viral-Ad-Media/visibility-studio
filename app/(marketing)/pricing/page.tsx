@@ -82,12 +82,12 @@ const STEPS = [
 
 export default function PricingPage() {
   return (
-    <div className="max-w-5xl mx-auto px-6 py-20">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-slate-100">
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-50 tracking-[-0.02em]">
           Pay once for access, then pay only for what you run
         </h1>
-        <p className="mt-4 text-slate-400 max-w-2xl mx-auto">
+        <p className="mt-4 text-slate-400 max-w-xl mx-auto">
           Try it free for {TRIAL_DAYS} days. Keep it with a one-time{" "}
           {formatUsd(ACCESS_FEE_USD)} access fee. Audits and campaigns are funded by
           prepaid credits that go down by what each job really cost, with no
@@ -95,7 +95,7 @@ export default function PricingPage() {
         </p>
       </div>
 
-      <div className="mt-14 grid sm:grid-cols-3 gap-6">
+      <div className="mt-14 grid md:grid-cols-3 gap-6">
         {STEPS.map((s) => (
           <Card
             key={s.label}
@@ -108,7 +108,7 @@ export default function PricingPage() {
                 <div className="flex items-center justify-center rounded-full border p-1.5">
                   <s.icon className="h-3.5 w-3.5 text-indigo-400" />
                 </div>
-                <CardTitle className="font-mono text-sm text-muted-foreground">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
                   {s.label}
                 </CardTitle>
                 <Badge variant="secondary" className="ml-auto rounded-full">
@@ -136,7 +136,7 @@ export default function PricingPage() {
       </div>
 
       <div className="mt-10 flex justify-center">
-        <Button asChild size="lg" className="bg-indigo-600 hover:bg-indigo-500 text-white">
+        <Button asChild size="lg" className="h-11">
           <Link href="/signup">Start your free trial</Link>
         </Button>
       </div>
@@ -149,7 +149,7 @@ export default function PricingPage() {
               rough estimate
             </Badge>
           </div>
-          <CardDescription>
+          <CardDescription className="max-w-prose">
             Each job deducts its own real cost: the AI research and the web
             searches it ran. That depends on how much there is to find about
             each business, so there is no fixed price per business. Based on
@@ -157,8 +157,8 @@ export default function PricingPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div className="rounded-lg border border-ink-700 bg-ink-800/50 p-4">
+          <div className="grid sm:grid-cols-3 gap-6 sm:gap-0 sm:divide-x divide-ink-700 border-y border-ink-700 py-5">
+            <div className="sm:px-5 first:sm:pl-0">
               <div className="text-xs text-slate-500">Per audited business</div>
               <div className="tabular text-xl font-semibold text-slate-100 mt-1">
                 ~{EST_COST_PER_AUDITED_BUSINESS_LABEL}
@@ -169,7 +169,7 @@ export default function PricingPage() {
                 {formatUsd(Math.round(EXAMPLE_AUDIT_SIZE * est.high))}
               </div>
             </div>
-            <div className="rounded-lg border border-ink-700 bg-ink-800/50 p-4">
+            <div className="sm:px-5 first:sm:pl-0">
               <div className="text-xs text-slate-500">Per redesign concept</div>
               <div className="tabular text-xl font-semibold text-slate-100 mt-1">
                 ~{formatUsd(EST_COST_PER_REDESIGN_USD)}
@@ -178,7 +178,7 @@ export default function PricingPage() {
                 Booking links are typically free
               </div>
             </div>
-            <div className="rounded-lg border border-ink-700 bg-ink-800/50 p-4">
+            <div className="sm:px-5 first:sm:pl-0">
               <div className="text-xs text-slate-500">
                 {formatUsd(TRIAL_STARTER_CREDIT_USD)} trial credit
               </div>
@@ -194,8 +194,8 @@ export default function PricingPage() {
           <table className="mt-6 w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-500 border-b border-ink-700">
-                <th className="py-2 font-medium">Credit pack</th>
-                <th className="py-2 font-medium">Roughly this many audited businesses</th>
+                <th scope="col" className="py-2 font-medium">Credit pack</th>
+                <th scope="col" className="py-2 font-medium">Roughly this many audited businesses</th>
               </tr>
             </thead>
             <tbody>
@@ -211,7 +211,7 @@ export default function PricingPage() {
           </table>
         </CardContent>
         <CardFooter>
-          <p className="text-xs text-slate-500 leading-relaxed">
+          <p className="text-xs text-slate-500 leading-relaxed max-w-prose">
             These are estimates, not quotes or guarantees. Your real per-job
             cost shows in the app next to every audit and campaign, and in your
             account&apos;s audit trail. When your balance reaches $0, new audits

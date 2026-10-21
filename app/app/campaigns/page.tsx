@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Megaphone } from "lucide-react";
 import db, { Campaign } from "@/lib/db";
 import AutoRefresh from "@/components/AutoRefresh";
+import StatusBadge from "@/components/StatusBadge";
+import { buttonVariants } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +85,7 @@ export default async function CampaignsPage({
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-ink-700 bg-ink-800">
             <Megaphone className="h-5 w-5 text-indigo-400" />
           </div>
-          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">
+          <h2 className="text-base font-semibold text-slate-100 mb-1.5">
             No campaigns yet
           </h2>
           <p className="mx-auto max-w-sm text-sm text-slate-400 mb-5">
@@ -91,11 +93,8 @@ export default async function CampaignsPage({
             <span className="text-slate-200">Create campaign</span> — each one
             gets a homepage redesign mockup and a real booking link.
           </p>
-          <Link
-            href="/app"
-            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg"
-          >
-            <Megaphone className="w-3.5 h-3.5" />
+          <Link href="/app" className={buttonVariants()}>
+            <Megaphone />
             Go to your audits
           </Link>
         </div>
@@ -106,7 +105,7 @@ export default async function CampaignsPage({
           <Link
             key={c.id}
             href={`/app/campaigns/${c.id}`}
-            className="card p-5 flex flex-wrap items-center gap-4 hover:border-ink-600 transition-colors block"
+            className="card p-4 sm:p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 hover:border-ink-600 hover:bg-ink-800/40"
           >
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-slate-100">{c.name}</div>
@@ -115,7 +114,7 @@ export default async function CampaignsPage({
                 {c.created_at.slice(0, 10)}
               </div>
             </div>
-            <div className="text-xs text-slate-400 text-right shrink-0 tabular">
+            <div className="text-xs text-slate-400 sm:text-right shrink-0 tabular">
               <div>
                 <span className="text-slate-200 font-medium">
                   {c.redesigns_ready}
@@ -141,9 +140,7 @@ export default async function CampaignsPage({
               </span>
             )}
             {c.in_flight > 0 && (
-              <span className="text-xs px-2.5 py-1 rounded-full border shrink-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
-                generating
-              </span>
+              <StatusBadge status="running" label="generating" className="self-start sm:self-auto" />
             )}
           </Link>
         ))}

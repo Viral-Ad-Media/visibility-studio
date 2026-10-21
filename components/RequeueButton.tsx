@@ -36,8 +36,10 @@ export default function RequeueButton({ auditId }: { auditId: number }) {
           }}
           className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-3 py-1.5 rounded-lg disabled:opacity-50"
         >
-          <RotateCw className="w-3.5 h-3.5" />
-          Requeue
+          <RotateCw
+            className={`w-3.5 h-3.5 ${busy ? "motion-safe:animate-spin" : ""}`}
+          />
+          {busy ? "Requeuing…" : "Requeue"}
         </button>
       </TooltipTrigger>
       <TooltipContent>

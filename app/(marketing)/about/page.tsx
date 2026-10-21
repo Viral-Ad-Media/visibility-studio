@@ -19,7 +19,7 @@ const PRINCIPLES = [
 
 export default function AboutPage() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-20">
+    <div className="max-w-[40rem] mx-auto px-4 sm:px-6 py-16 sm:py-20">
       <h1 className="text-3xl font-bold text-slate-100">About Visibility Studio</h1>
       <p className="mt-6 text-slate-400 leading-relaxed">
         Prospecting local businesses for a redesign, SEO, or marketing pitch

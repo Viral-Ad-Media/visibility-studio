@@ -1,9 +1,11 @@
 "use client";
 import { apiFetch } from "@/lib/client-request";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2, X } from "lucide-react";
+import { Field, FormMessage, inputClass as input } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
 
 type Props = {
   audit: {
@@ -32,6 +34,16 @@ export default function AuditActions({ audit }: Props) {
   const [notes, setNotes] = useState(audit.notes ?? "");
 
   const canEdit = audit.status === "ready" || audit.status === "error";
+
+  // Escape closes the edit dialog, like every other dialog the user knows.
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setEditing(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing]);
 
   async function save(e: React.FormEvent) {
     try {
@@ -95,14 +107,9 @@ export default function AuditActions({ audit }: Props) {
     }
   }
 
-  const input =
-    "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-    "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 " +
-    "focus:ring-2 focus:ring-indigo-500/30";
-
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {canEdit && (
           <button
             className={btn}
@@ -134,73 +141,89 @@ export default function AuditActions({ audit }: Props) {
 
       {editing && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center pt-24 px-4"
+          className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center pt-16 sm:pt-24 px-4"
           onClick={() => setEditing(false)}
         >
           <form
             onSubmit={save}
             onClick={(e) => e.stopPropagation()}
-            className="card p-5 space-y-4 w-full max-w-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-audit-title"
+            className="card p-5 space-y-4 w-full max-w-xl shadow-2xl shadow-black/40"
           >
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                  Niche / category
-                </label>
+            <div className="flex items-center justify-between gap-4">
+              <h2
+                id="edit-audit-title"
+                className="text-base font-semibold text-slate-100"
+              >
+                Edit audit
+              </h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-400"
+                onClick={() => setEditing(false)}
+                aria-label="Close"
+              >
+                <X />
+              </Button>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Niche / category">
                 <input
                   className={input}
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   required
+                  autoFocus
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                  Location
-                </label>
+              </Field>
+              <Field label="Location">
                 <input
                   className={input}
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   required
                 />
-              </div>
+              </Field>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Number of businesses
-              </label>
+            <Field label="Number of businesses" hint="Between 1 and 50.">
               <input
                 type="number"
                 min={1}
                 max={50}
-                className={input + " w-32"}
+                className={input + " w-32 tabular-nums"}
                 value={count}
                 onChange={(e) => setCount(Number(e.target.value))}
               />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Notes for the engine
-              </label>
+            </Field>
+            <Field label="Notes for the engine" optional>
               <textarea
-                className={input + " h-20 resize-none"}
+                className={input + " h-20 resize-y"}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
+            </Field>
+            {error && <FormMessage>{error}</FormMessage>}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={busy}>
+                {busy ? "Saving…" : "Save changes"}
+              </Button>
             </div>
-            {error && <div className="text-sm text-red-400">{error}</div>}
-            <button
-              disabled={busy}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg"
-            >
-              {busy ? "Saving…" : "Save changes"}
-            </button>
           </form>
         </div>
       )}
       {error && !editing && (
-        <div className="text-sm text-red-400 mt-2">{error}</div>
+        <FormMessage className="mt-2">{error}</FormMessage>
       )}
     </>
   );

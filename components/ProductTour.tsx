@@ -113,7 +113,7 @@ export default function ProductTour() {
         </div>
         <p className="text-xs text-slate-400 leading-relaxed mb-3">{step.body}</p>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-slate-600 tabular">
+          <span className="text-xs text-slate-500 tabular">
             {stepIndex + 1} of {STEPS.length}
           </span>
           <div className="flex items-center gap-2">

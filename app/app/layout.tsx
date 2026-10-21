@@ -53,6 +53,12 @@ export default async function CockpitLayout({
 
   return (
     <TooltipProvider>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-ink-800 focus:px-4 focus:py-2 focus:text-sm focus:text-slate-100"
+      >
+        Skip to content
+      </a>
       <div className="flex flex-col md:flex-row min-h-screen">
         <Nav
           creditBalance={creditBalance}
@@ -60,7 +66,10 @@ export default async function CockpitLayout({
           trialDaysLeft={trialDaysLeft}
           isPlatformAdmin={!!admin}
         />
-        <main className="flex-1 min-w-0 p-4 md:p-8 max-w-6xl mx-auto w-full">
+        <main
+          id="main"
+          className="flex-1 min-w-0 px-4 py-6 md:p-8 lg:px-10 max-w-6xl mx-auto w-full"
+        >
           {children}
         </main>
       </div>

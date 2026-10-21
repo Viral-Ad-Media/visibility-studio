@@ -35,11 +35,10 @@ export default function AccountMenu() {
   return (
     <div className="space-y-2 text-xs px-2">
       {data && data.accounts.length > 0 && (
-        <label>
-          Account
+        <label className="block">
+          <span className="block mb-1 font-medium text-slate-400">Account</span>
           <select
-            className="w-full p-2 bg-ink-800 rounded"
-            aria-label="Active account"
+            className="w-full px-2 py-1.5 bg-ink-800 border border-ink-700 rounded-lg text-slate-200 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/25"
             disabled={busy}
             value={data.accountId}
             onChange={(e) => select(Number(e.target.value))}
@@ -54,7 +53,7 @@ export default function AccountMenu() {
       )}
       {data?.invites.map((i) => (
         <button
-          className="block p-2 border rounded"
+          className="block w-full text-left px-2 py-1.5 border border-ink-700 rounded-lg text-slate-300 hover:bg-ink-800 disabled:opacity-50"
           disabled={busy}
           key={i.account_id}
           onClick={() => select(i.account_id, true)}
