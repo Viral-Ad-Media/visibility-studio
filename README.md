@@ -80,3 +80,7 @@ Business research allows at most 3 searches and 3 page fetches, with 2,048 resea
 Each audit stops new research once its **completed-job estimated usage** reaches $5. This is an admission safeguard, not a hard provider invoice ceiling: concurrent in-flight requests can exceed it, and failed/timed-out provider requests may be charged upstream without reported usage. The testing credit ledger is separate from actual Anthropic funds. Set an organization or non-default workspace spend limit in Claude Console for an enforced monthly ceiling; do not rely on the $500 testing balance to restrict the provider account.
 
 Fresh installations also require `20261008220320_derive_worker_job_account.sql` after the bootstrap so worker discovery can insert child jobs with ownership derived from their persisted targets. The production Vault secret is now configured and dispatch has been verified with HTTP 200 responses.
+
+## Clerk migration preparation
+
+The [Clerk migration plan](docs/auth/clerk-migration.md) describes preserving existing UUIDs, memberships and transaction-scoped RLS while moving authentication to the owner's selected Clerk application. The [read-only preflight](scripts/auth/clerk-preflight.sql) inventories the current schema and aggregate user readiness. This is preparation only: Supabase Auth remains active; no Clerk init, user import, schema change or production cutover has been performed.
