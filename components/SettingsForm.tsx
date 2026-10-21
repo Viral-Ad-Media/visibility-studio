@@ -59,7 +59,7 @@ export default function SettingsForm({
     "focus:ring-2 focus:ring-indigo-500/30";
 
   return (
-    <form onSubmit={save} className="card p-6 space-y-4 animate-fade-in-up">
+    <form onSubmit={save} className="card p-6 space-y-4">
       <div>
         <label className="block text-xs font-medium text-slate-400 mb-1.5">
           Calendly event type

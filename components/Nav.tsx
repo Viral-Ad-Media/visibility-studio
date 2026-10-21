@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import AccountMenu from "@/components/AccountMenu";
 
 import { useState } from "react";
@@ -89,14 +90,16 @@ export default function Nav({
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button
+      <Button
+        type="button"
+        variant="ghost"
         aria-expanded={open}
         aria-controls="cockpit-navigation"
         onClick={() => setOpen(!open)}
-        className="md:hidden p-4 text-left border-b border-ink-700"
+        className="md:hidden h-14 justify-start rounded-none p-4 text-left border-b border-ink-700"
       >
         {open ? "Close menu" : "Menu"}
-      </button>
+      </Button>
       <nav
         id="cockpit-navigation"
         className={`${open ? "flex" : "hidden"} md:flex w-full md:w-56 shrink-0 border-r border-ink-700 bg-ink-900 p-4 flex-col gap-1`}
@@ -120,6 +123,7 @@ export default function Nav({
               key={href}
               href={href}
               id={tourId}
+              aria-current={active ? "page" : undefined}
               onClick={() => setOpen(false)}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm ${
                 active
@@ -172,10 +176,10 @@ export default function Nav({
           </Link>
           <ThemeToggle variant="row" />
           <form action={logout}>
-            <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-ink-800 hover:text-slate-200">
+            <Button type="submit" variant="ghost" className="h-auto justify-start w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-ink-800 hover:text-slate-200">
               <LogOut className="w-4 h-4" />
               Log out
-            </button>
+            </Button>
           </form>
           <div className="px-3 pb-1 text-[11px] text-slate-600 leading-relaxed">
             Audits and campaigns run automatically — no need to run anything

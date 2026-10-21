@@ -14,7 +14,7 @@ export default async function ForgotPasswordPage({
   return (
     <form
       action={requestPasswordReset}
-      className="card p-6 space-y-4 animate-fade-in-up"
+      className="card p-6 space-y-4"
     >
       <h1 className="text-lg font-semibold text-slate-100">
         Reset your password

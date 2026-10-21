@@ -154,7 +154,12 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-delay: 0ms !important;
+    transition-delay: 0ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -212,4 +217,19 @@ body {
 }
 .markdown td {
   @apply border-b border-ink-800 px-3 py-2;
+}
+
+/* Instant-open includes keyboard focus and moving between nearby tooltips.
+   Only a first, delayed hover gets motion; no zoom or positional shift. */
+.tooltip-content {
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+}
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  .tooltip-content[data-state="delayed-open"] {
+    animation: tooltip-reveal 150ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+}
+@keyframes tooltip-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

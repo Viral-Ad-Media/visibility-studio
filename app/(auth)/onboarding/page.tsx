@@ -19,7 +19,7 @@ export default async function OnboardingPage({
     return (
       <form
         action={createAccount}
-        className="card p-6 space-y-4 animate-fade-in-up"
+        className="card p-6 space-y-4"
       >
         <div className="text-[11px] text-slate-600 mb-1">Step 2 of 2</div>
         <h1 className="text-lg font-semibold text-slate-100">
@@ -56,7 +56,7 @@ export default async function OnboardingPage({
   }
 
   return (
-    <div className="card p-6 space-y-5 animate-fade-in-up">
+    <div className="card p-6 space-y-5">
       <div className="text-[11px] text-slate-600">Step 1 of 2</div>
       <div>
         <h1 className="text-lg font-semibold text-slate-100 mb-1">
