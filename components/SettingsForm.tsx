@@ -3,6 +3,8 @@ import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FormMessage, inputClass as input } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
 
 type EventType = { uri: string; name: string; duration: number };
 
@@ -53,17 +55,13 @@ export default function SettingsForm({
     }
   }
 
-  const input =
-    "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-    "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 " +
-    "focus:ring-2 focus:ring-indigo-500/30";
 
   return (
     <form onSubmit={save} className="card p-6 space-y-4">
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
+      <label className="block">
+        <span className="block text-xs font-medium text-slate-300 mb-1.5">
           Calendly event type
-        </label>
+        </span>
         {!calendlyConnected ? (
           <p className="text-sm text-slate-500">
             Connect Calendly above to pick an event type.
@@ -86,20 +84,17 @@ export default function SettingsForm({
             ))}
           </select>
         )}
-        <p className="text-[11px] text-slate-600 mt-1.5">
+        <span className="block text-xs text-slate-500 mt-1.5 max-w-prose">
           Which Calendly event type booking links should use for campaign
           outreach. Leave on auto-pick and the engine will judge which of your
           event types fits a cold-outreach discovery call — set this if that
           ever picks the wrong one.
-        </p>
-      </div>
-      <button
-        disabled={busy}
-        className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg"
-      >
+        </span>
+      </label>
+      <Button type="submit" disabled={busy}>
         {busy ? "Saving…" : saved ? "Saved" : "Save"}
-      </button>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      </Button>
+      {error && <FormMessage>{error}</FormMessage>}
     </form>
   );
 }

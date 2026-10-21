@@ -3,6 +3,8 @@ import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Field, FormMessage, inputClass as input } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
 
 export default function NewAuditForm() {
   const router = useRouter();
@@ -46,30 +48,20 @@ export default function NewAuditForm() {
     }
   }
 
-  const input =
-    "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-    "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 " +
-    "focus:ring-2 focus:ring-indigo-500/30";
-
   return (
-    <form onSubmit={submit} className="card p-6 space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">
-            Niche / category
-          </label>
+    <form onSubmit={submit} className="card p-5 sm:p-6 space-y-5">
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Field label="Niche / category">
           <input
             className={input}
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             placeholder="dentists, roofing companies, restaurants…"
             required
+            autoFocus
           />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">
-            Location
-          </label>
+        </Field>
+        <Field label="Location">
           <input
             className={input}
             value={location}
@@ -77,42 +69,39 @@ export default function NewAuditForm() {
             placeholder="Dallas, Lagos, Atlanta…"
             required
           />
-        </div>
+        </Field>
       </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          Number of businesses
-        </label>
+      <Field
+        label="Number of businesses"
+        hint="Between 1 and 50. Each audited business draws down your credit balance."
+      >
         <input
           type="number"
           min={1}
           max={50}
-          className={input + " w-32"}
+          className={input + " w-32 tabular-nums"}
           value={count}
           onChange={(e) => setCount(Number(e.target.value))}
         />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          Notes for the engine (optional)
-        </label>
+      </Field>
+      <Field label="Notes for the engine" optional>
         <textarea
-          className={input + " h-24 resize-none"}
+          className={input + " h-24 resize-y"}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="e.g. focus on businesses with weak websites, audit these specific sites: …"
         />
+      </Field>
+      {error && <FormMessage>{error}</FormMessage>}
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between pt-1">
+        <p className="text-xs text-slate-500">
+          Runs automatically once queued. Results appear as each business is
+          audited.
+        </p>
+        <Button type="submit" disabled={busy} className="shrink-0">
+          {busy ? "Queuing…" : "Queue audit"}
+        </Button>
       </div>
-      {error && <div className="text-sm text-red-400">{error}</div>}
-      <button
-        disabled={busy}
-        className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg"
-      >
-        {busy ? "Queuing…" : "Queue audit"}
-      </button>
-      <p className="text-[11px] text-slate-600">
-        Audits run automatically — no need to run anything yourself.
-      </p>
     </form>
   );
 }

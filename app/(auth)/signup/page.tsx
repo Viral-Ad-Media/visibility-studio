@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { signup } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
-
-const input =
-  "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-  "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30";
+import { Field, FormMessage, inputClass as input } from "@/components/ui/field";
+import { buttonVariants } from "@/components/ui/button";
 
 export default async function SignupPage({
   searchParams: searchParamsPromise,
@@ -18,30 +16,32 @@ export default async function SignupPage({
         Create your account
       </h1>
       {searchParams.error && (
-        <p className="text-sm text-red-400">{searchParams.error}</p>
+        <FormMessage>{searchParams.error}</FormMessage>
       )}
       {searchParams.ref && (
         <input type="hidden" name="ref" value={searchParams.ref} />
       )}
 
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          Email
-        </label>
-        <input className={input} type="email" name="email" required autoFocus />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          Password
-        </label>
+      <Field label="Email">
+        <input
+          className={input}
+          type="email"
+          name="email"
+          autoComplete="email"
+          required
+          autoFocus
+        />
+      </Field>
+      <Field label="Password" hint="At least 6 characters.">
         <PasswordInput
           className={input}
           name="password"
+          autoComplete="new-password"
           required
           minLength={6}
         />
-      </div>
-      <button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
+      </Field>
+      <button className={buttonVariants({ size: "lg", className: "w-full" })}>
         Sign up
       </button>
       <p className="text-xs text-slate-500 text-center">

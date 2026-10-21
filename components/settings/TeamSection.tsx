@@ -3,6 +3,8 @@ import { apiFetch } from "@/lib/client-request";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { inputClass as input } from "@/components/ui/field";
 
 type Member = { user_id: string; email: string; role: string };
 
@@ -22,10 +24,6 @@ export default function TeamSection({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const input =
-    "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-    "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 " +
-    "focus:ring-2 focus:ring-indigo-500/30";
 
   async function addMember(e: React.FormEvent) {
     try {
@@ -123,10 +121,10 @@ export default function TeamSection({
       {isOwner && (
         <form onSubmit={addMember} className="card p-6 space-y-3">
           <div>
-            <h2 className="text-sm font-medium text-slate-200 mb-1">
+            <h2 className="text-base font-semibold text-slate-100 mb-1">
               Invite a member
             </h2>
-            <p className="text-[11px] text-slate-600">
+            <p className="text-xs text-slate-500">
               Ask them to sign in with this email and accept the invitation from
               their account menu.
             </p>
@@ -136,21 +134,20 @@ export default function TeamSection({
               {error}
             </p>
           )}
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               className={input}
               type="email"
+              aria-label="Teammate email"
+              autoComplete="off"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="teammate@company.com"
               required
             />
-            <button
-              disabled={busy}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg shrink-0"
-            >
-              Invite
-            </button>
+            <Button type="submit" disabled={busy} className="shrink-0">
+              {busy ? "Inviting…" : "Invite"}
+            </Button>
           </div>
         </form>
       )}

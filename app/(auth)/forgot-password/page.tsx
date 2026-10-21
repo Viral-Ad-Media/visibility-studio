@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { requestPasswordReset } from "../actions";
-
-const input =
-  "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-  "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30";
+import { FormMessage, inputClass as input } from "@/components/ui/field";
+import { buttonVariants } from "@/components/ui/button";
 
 export default async function ForgotPasswordPage({
   searchParams: searchParamsPromise,
@@ -21,17 +19,17 @@ export default async function ForgotPasswordPage({
       </h1>
 
       {searchParams.sent ? (
-        <p className="text-sm text-emerald-400">
+        <FormMessage tone="success">
           If an account exists for that email, we&apos;ve sent a link to reset
           the password. It works once, in this browser.
-        </p>
+        </FormMessage>
       ) : (
         <p className="text-sm text-slate-400">
           Enter your account email and we&apos;ll send you a reset link.
         </p>
       )}
       {searchParams.error && (
-        <p className="text-sm text-red-400">{searchParams.error}</p>
+        <FormMessage>{searchParams.error}</FormMessage>
       )}
 
       <div>
@@ -51,7 +49,7 @@ export default async function ForgotPasswordPage({
           autoFocus
         />
       </div>
-      <button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
+      <button className={buttonVariants({ size: "lg", className: "w-full" })}>
         Send reset link
       </button>
       <p className="text-xs text-slate-500 text-center">

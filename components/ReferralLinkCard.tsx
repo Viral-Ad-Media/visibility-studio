@@ -7,7 +7,7 @@ function CopyField({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div>
-      <div className="text-[11px] text-slate-500 mb-1">{label}</div>
+      <div className="text-xs text-slate-500 mb-1">{label}</div>
       <div className="flex items-center gap-2">
         <input
           readOnly

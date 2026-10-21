@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Check, Mail, ChevronDown, ChevronRight, X } from "lucide-react";
 import type { Contact } from "@/lib/shared";
+import { Button } from "@/components/ui/button";
 
 function draftText(c: Contact): string {
   return (
@@ -63,15 +64,18 @@ function Row({
   const [open, setOpen] = useState(false);
   return (
     <div className="card overflow-hidden">
-      <div className="w-full flex items-center gap-3 p-4 hover:bg-ink-800/50">
+      <div className="w-full flex flex-wrap sm:flex-nowrap items-center gap-3 p-4 hover:bg-ink-800/50">
         <input
           type="checkbox"
           checked={selected}
           onChange={onToggle}
+          aria-label={`Select ${c.name}`}
           className="w-4 h-4 rounded border-ink-600 bg-ink-800 text-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 shrink-0"
         />
         <button
+          type="button"
           onClick={() => setOpen(!open)}
+          aria-expanded={open}
           className="flex-1 min-w-0 flex items-center gap-2 text-left"
         >
           {open ? (
@@ -167,17 +171,17 @@ export default function EmailQueue({ contacts }: { contacts: Contact[] }) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-3 px-1">
+      <label className="inline-flex items-center gap-2 mb-3 px-1 cursor-pointer">
         <input
           type="checkbox"
           checked={selected.size > 0 && selected.size === contacts.length}
           onChange={toggleAll}
           className="w-4 h-4 rounded border-ink-600 bg-ink-800 text-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-slate-400">
           Select all {contacts.length} draft{contacts.length === 1 ? "" : "s"}
         </span>
-      </div>
+      </label>
 
       <div className="space-y-2 pb-24">
         {contacts.map((c) => (
@@ -191,7 +195,11 @@ export default function EmailQueue({ contacts }: { contacts: Contact[] }) {
       </div>
 
       {selected.size > 0 && (
-        <div className="fixed bottom-6 max-w-[calc(100vw-2rem)] flex-wrap justify-center left-1/2 -translate-x-1/2 z-40 card px-5 py-3 flex items-center gap-3 shadow-xl border-indigo-600/40">
+        <div
+          role="region"
+          aria-label="Selection actions"
+          className="fixed bottom-4 sm:bottom-6 max-w-[calc(100vw-2rem)] flex-wrap justify-center left-1/2 -translate-x-1/2 z-40 card px-4 py-2.5 flex items-center gap-3 shadow-xl shadow-black/30"
+        >
           <span className="text-sm text-slate-200">
             <span className="font-semibold text-indigo-400">
               {selected.size}
@@ -202,19 +210,18 @@ export default function EmailQueue({ contacts }: { contacts: Contact[] }) {
             text={combinedDraft}
             label={`Copy all ${selected.size}`}
           />
-          <button
-            disabled={busy}
-            onClick={markContacted}
-            className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
-          >
-            Mark as Contacted
-          </button>
-          <button
+          <Button size="sm" disabled={busy} onClick={markContacted}>
+            {busy ? "Marking…" : "Mark as Contacted"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-slate-400"
             onClick={() => setSelected(new Set())}
-            className="text-slate-500 hover:text-slate-300"
+            aria-label="Clear selection"
           >
-            <X className="w-4 h-4" />
-          </button>
+            <X />
+          </Button>
         </div>
       )}
     </div>

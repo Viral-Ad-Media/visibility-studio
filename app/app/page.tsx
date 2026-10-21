@@ -4,15 +4,11 @@ import Link from "next/link";
 import { SearchCheck } from "lucide-react";
 import db, { Audit } from "@/lib/db";
 import AutoRefresh from "@/components/AutoRefresh";
+import StatusBadge from "@/components/StatusBadge";
+import { buttonVariants } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_STYLES: Record<string, string> = {
-  queued: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  running: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
-  ready: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-  error: "bg-red-500/10 text-red-400 border-red-500/30",
-};
 
 export default async function Dashboard({
   searchParams,
@@ -64,12 +60,10 @@ export default async function Dashboard({
       {audits.some((a) => ["queued", "running"].includes(a.status)) && (
         <AutoRefresh />
       )}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-slate-100">Audits</h1>
-        <Link
-          href="/app/new"
-          className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg"
-        >
+        <Link href="/app/new" className={buttonVariants()}>
+          <SearchCheck />
           New audit
         </Link>
       </div>
@@ -79,7 +73,7 @@ export default async function Dashboard({
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-ink-700 bg-ink-800">
             <SearchCheck className="h-5 w-5 text-indigo-400" />
           </div>
-          <h2 className="text-sm font-semibold text-slate-100 mb-1.5">
+          <h2 className="text-base font-semibold text-slate-100 mb-1.5">
             No audits yet
           </h2>
           <p className="mx-auto max-w-sm text-sm text-slate-400 mb-5">
@@ -87,11 +81,8 @@ export default async function Dashboard({
             businesses and audits each one automatically. Try &ldquo;dentists in
             Dallas&rdquo; or &ldquo;roofing companies in Atlanta&rdquo;.
           </p>
-          <Link
-            href="/app/new"
-            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg"
-          >
-            <SearchCheck className="w-3.5 h-3.5" />
+          <Link href="/app/new" className={buttonVariants()}>
+            <SearchCheck />
             Queue your first audit
           </Link>
         </div>
@@ -105,36 +96,52 @@ export default async function Dashboard({
             <Link
               key={a.id}
               href={`/app/audit/${a.id}`}
-              className="card p-5 flex items-center gap-4 hover:border-ink-600 transition-colors block"
+              className="card p-4 sm:p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 hover:border-ink-600 hover:bg-ink-800/40"
             >
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-slate-100">{a.query}</div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-semibold text-slate-100 min-w-0">
+                    {a.query}
+                  </div>
+                  <StatusBadge status={a.status} className="sm:hidden" />
+                </div>
                 <div className="text-xs text-slate-500 mt-1">
                   {a.category} · {a.location} · target {a.target_count}{" "}
                   businesses · {a.created_at.slice(0, 10)}
                 </div>
                 {a.status === "error" && a.error && (
-                  <div className="text-xs text-red-400 mt-1 truncate">
+                  <div className="text-xs text-red-400 mt-1 line-clamp-2">
                     {a.error}
                   </div>
                 )}
               </div>
               {c && (
-                <div className="text-xs text-slate-400 text-right shrink-0">
-                  <div>
-                    <span className="tabular text-slate-200 font-medium">
+                <dl className="flex gap-4 text-xs text-slate-500 sm:text-right shrink-0">
+                  <div className="flex flex-col-reverse">
+                    <dt>businesses</dt>
+                    <dd className="tabular text-sm font-semibold text-slate-200">
                       {c.total}
-                    </span>{" "}
-                    businesses ·{" "}
-                    <span className="tabular text-red-400 font-medium">
+                    </dd>
+                  </div>
+                  <div className="flex flex-col-reverse">
+                    <dt>high priority</dt>
+                    <dd className="tabular text-sm font-semibold text-red-400">
                       {c.high}
-                    </span>{" "}
-                    high priority
+                    </dd>
                   </div>
-                  <div className="mt-0.5 tabular">
-                    {c.emails} emails · {c.outreach} outreach drafts
+                  <div className="flex flex-col-reverse">
+                    <dt>emails</dt>
+                    <dd className="tabular text-sm font-semibold text-slate-200">
+                      {c.emails}
+                    </dd>
                   </div>
-                </div>
+                  <div className="flex flex-col-reverse">
+                    <dt>drafts</dt>
+                    <dd className="tabular text-sm font-semibold text-slate-200">
+                      {c.outreach}
+                    </dd>
+                  </div>
+                </dl>
               )}
               {!!cost && (
                 <span
@@ -144,11 +151,7 @@ export default async function Dashboard({
                   ~${cost.toFixed(2)}
                 </span>
               )}
-              <span
-                className={`text-xs px-2.5 py-1 rounded-full border shrink-0 ${STATUS_STYLES[a.status]}`}
-              >
-                {a.status}
-              </span>
+              <StatusBadge status={a.status} className="hidden sm:inline-flex" />
             </Link>
           );
         })}

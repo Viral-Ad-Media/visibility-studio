@@ -2,10 +2,8 @@ import { redirect } from "next/navigation";
 import { resetPassword } from "../actions";
 import { supabaseServerClient } from "@/lib/supabase-server";
 import PasswordInput from "@/components/PasswordInput";
-
-const input =
-  "w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2 text-sm text-slate-200 " +
-  "placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30";
+import { Field, FormMessage, inputClass as input } from "@/components/ui/field";
+import { buttonVariants } from "@/components/ui/button";
 
 // Reached from /auth/confirm once a reset link has been exchanged for a
 // session. Outside /app, so the proxy doesn't gate it: check the session here.
@@ -32,13 +30,10 @@ export default async function ResetPasswordPage({
       </h1>
       <p className="text-sm text-slate-400">For {user.email}</p>
       {searchParams.error && (
-        <p className="text-sm text-red-400">{searchParams.error}</p>
+        <FormMessage>{searchParams.error}</FormMessage>
       )}
 
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          New password
-        </label>
+      <Field label="New password" hint="At least 8 characters.">
         <PasswordInput
           className={input}
           name="password"
@@ -46,11 +41,8 @@ export default async function ResetPasswordPage({
           autoComplete="new-password"
           required
         />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">
-          Confirm new password
-        </label>
+      </Field>
+      <Field label="Confirm new password">
         <PasswordInput
           className={input}
           name="confirm_password"
@@ -58,8 +50,8 @@ export default async function ResetPasswordPage({
           autoComplete="new-password"
           required
         />
-      </div>
-      <button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
+      </Field>
+      <button className={buttonVariants({ size: "lg", className: "w-full" })}>
         Save password
       </button>
     </form>

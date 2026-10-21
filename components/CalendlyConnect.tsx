@@ -17,7 +17,7 @@ export default function CalendlyConnect({
     <div className="card p-6 space-y-3">
       <div>
         <h2 className="text-sm font-medium text-slate-200">Calendly</h2>
-        <p className="text-[11px] text-slate-600 mt-1">
+        <p className="text-xs text-slate-500 mt-1">
           Booking links for campaign outreach are created on your connected Calendly account.
         </p>
       </div>

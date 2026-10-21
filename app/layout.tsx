@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { themeInitScript } from "@/lib/theme";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+// Hanken Grotesk over the ubiquitous Inter: same neutral, highly legible UI
+// sans, with a little more character in the display sizes and tabular-ready
+// figures for the score/cost columns.
+const sans = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
@@ -46,7 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // before React hydrates, so the class differs from the server render.
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${sans.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
       <head>

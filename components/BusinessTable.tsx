@@ -14,12 +14,8 @@ import type { Business } from "@/lib/shared";
 import { CRM_STATUSES } from "@/lib/shared";
 import StatusSelect from "@/components/StatusSelect";
 import CreateCampaignBar from "@/components/CreateCampaignBar";
+import StatusBadge from "@/components/StatusBadge";
 
-const PRIORITY_STYLES: Record<string, string> = {
-  High: "bg-red-500/10 text-red-400 border-red-500/30",
-  Medium: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  Low: "bg-slate-500/10 text-slate-400 border-slate-500/30",
-};
 
 function Score({ label, value }: { label: string; value: number | null }) {
   return (
@@ -37,7 +33,7 @@ function Score({ label, value }: { label: string; value: number | null }) {
       >
         {value ?? "–"}
       </div>
-      <div className="text-[10px] text-slate-500 leading-tight">{label}</div>
+      <div className="text-xs text-slate-500 leading-tight">{label}</div>
     </div>
   );
 }
@@ -46,10 +42,10 @@ function Section({ title, text }: { title: string; text: string | null }) {
   if (!text) return null;
   return (
     <div>
-      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-        {title}
+      <h3 className="text-xs font-semibold text-slate-400 mb-1">{title}</h3>
+      <div className="text-sm text-slate-300 whitespace-pre-wrap max-w-prose">
+        {text}
       </div>
-      <div className="text-sm text-slate-300 whitespace-pre-wrap">{text}</div>
     </div>
   );
 }
@@ -71,6 +67,8 @@ function CopyButton({ text, label }: { text: string; label: string }) {
           );
         }
       }}
+      type="button"
+      aria-live="polite"
       className="flex items-center gap-1.5 text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-300 px-2.5 py-1.5 rounded-lg"
     >
       {copied ? (
@@ -130,16 +128,18 @@ function Row({
           aria-label={`Select ${b.name}`}
         />
         <button
+          type="button"
           onClick={() => setOpen(!open)}
-          className="flex-1 flex items-center gap-3 text-left min-w-0"
+          aria-expanded={open}
+          className="flex-1 flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 text-left min-w-0"
         >
           {open ? (
             <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
           ) : (
             <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
           )}
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-slate-100 truncate">{b.name}</div>
+          <div className="flex-1 min-w-[10rem]">
+            <div className="font-medium text-slate-100 line-clamp-2 sm:truncate">{b.name}</div>
             <div className="text-xs text-slate-500 truncate">
               {b.website ?? "no website"}
               {b.rating &&
@@ -154,13 +154,9 @@ function Row({
             <Score label="Opp" value={b.opportunity_score} />
           </div>
           {b.priority && (
-            <span
-              className={`text-xs px-2.5 py-1 rounded-full border shrink-0 ${PRIORITY_STYLES[b.priority]}`}
-            >
-              {b.priority}
-            </span>
+            <StatusBadge status={b.priority} />
           )}
-          <span className="text-xs text-slate-500 shrink-0 w-20 text-right">
+          <span className="text-xs text-slate-500 shrink-0 sm:w-20 sm:text-right">
             {b.crm_status}
           </span>
         </button>
@@ -194,8 +190,11 @@ function Row({
               <span className="text-xs text-slate-400">{b.phone}</span>
             )}
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-[11px] text-slate-500">Status</span>
+              <span className="text-xs text-slate-500" aria-hidden>
+                Status
+              </span>
               <StatusSelect
+                label={`CRM status for ${b.name}`}
                 value={b.crm_status}
                 options={CRM_STATUSES}
                 disabled={saving}
@@ -240,11 +239,15 @@ function Row({
 
           {b.outreach_email && (
             <div className="bg-ink-950 border border-ink-700 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wide">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <h3 className="text-xs font-semibold text-slate-400 min-w-0">
                   Outreach draft
-                  {b.outreach_subject ? ` — ${b.outreach_subject}` : ""}
-                </div>
+                  {b.outreach_subject && (
+                    <span className="block mt-0.5 text-sm font-medium text-slate-100">
+                      {b.outreach_subject}
+                    </span>
+                  )}
+                </h3>
                 <CopyButton
                   text={
                     b.outreach_subject

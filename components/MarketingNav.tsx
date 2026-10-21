@@ -29,7 +29,7 @@ export default function MarketingNav() {
               key={l.href}
               href={l.href}
               aria-current={pathname === l.href ? "page" : undefined}
-              className={`text-sm ${
+              className={`text-sm transition-colors ${
                 pathname === l.href
                   ? "text-slate-100 font-medium"
                   : "text-slate-400 hover:text-slate-200"
@@ -41,7 +41,7 @@ export default function MarketingNav() {
         </nav>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button asChild className="hidden sm:inline-flex bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">
+          <Button asChild className="hidden sm:inline-flex">
             <Link href="/app">Open the app</Link>
           </Button>
           <Button type="button" variant="ghost" className="sm:hidden h-11" aria-expanded={open} aria-controls="marketing-mobile-nav" onClick={() => setOpen((value) => !value)}>
@@ -55,7 +55,7 @@ export default function MarketingNav() {
             <Link href={link.href} aria-current={pathname === link.href ? "page" : undefined} onClick={() => setOpen(false)}>{link.label}</Link>
           </Button>
         ))}
-        <Button asChild className="h-11 bg-indigo-600 text-white hover:bg-indigo-500">
+        <Button asChild className="h-11">
           <Link href="/app" onClick={() => setOpen(false)}>Open the app</Link>
         </Button>
       </nav>
