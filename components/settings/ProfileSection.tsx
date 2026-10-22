@@ -6,10 +6,12 @@ import PasswordInput from "@/components/PasswordInput";
 import { Field, FormMessage, inputClass as input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 
-export default function ProfileSection({ email }: { email: string }) {
+export default function ProfileSection({ email, clerk = false }: { email: string; clerk?: boolean }) {
   const params = useSearchParams();
   const error = params.get("password_error");
   const changed = params.get("password_changed");
+
+  if (clerk) return <a className="btn" href="/app/security">Manage password and account security</a>;
 
   return (
     <div className="space-y-4">

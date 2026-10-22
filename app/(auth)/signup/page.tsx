@@ -1,3 +1,5 @@
+import { SignUp } from "@clerk/nextjs";
+import { resolveAuthProvider } from "@/lib/auth-config";
 import Link from "next/link";
 import { signup } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
@@ -10,6 +12,10 @@ export default async function SignupPage({
   searchParams: Promise<{ error?: string; ref?: string }>;
 }) {
   const searchParams = await searchParamsPromise;
+  if (resolveAuthProvider() === "clerk") {
+    const destination = searchParams.ref ? `/onboarding?ref=${encodeURIComponent(searchParams.ref)}` : "/onboarding";
+    return <SignUp routing="hash" signInUrl="/login" fallbackRedirectUrl={destination} />;
+  }
   return (
     <form action={signup} className="card p-6 space-y-4">
       <h1 className="text-lg font-semibold text-slate-100">

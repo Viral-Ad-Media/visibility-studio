@@ -1,3 +1,5 @@
+import { SignIn } from "@clerk/nextjs";
+import { resolveAuthProvider } from "@/lib/auth-config";
 import Link from "next/link";
 import { login } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
@@ -10,6 +12,11 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string; next?: string; checkEmail?: string }>;
 }) {
   const searchParams = await searchParamsPromise;
+  if (resolveAuthProvider() === "clerk") {
+    const raw = searchParams.next ?? "/app";
+    const destination = raw.startsWith("/") && !raw.startsWith("//") && !raw.includes("\\") ? raw : "/app";
+    return <SignIn routing="hash" signUpUrl="/signup" fallbackRedirectUrl={destination} />;
+  }
   return (
     <form action={login} className="card p-6 space-y-4">
       <h1 className="text-lg font-semibold text-slate-100">Log in</h1>
