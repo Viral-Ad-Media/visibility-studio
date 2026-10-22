@@ -1,5 +1,5 @@
 import db, { getCurrentAccountId, serviceDb } from "@/lib/db";
-import { supabaseServerClient } from "@/lib/supabase-server";
+import { getAuthenticatedUser } from "@/lib/auth";
 import {
   getConnectionStatus,
   listEventTypes,
@@ -14,9 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const accountId = await getCurrentAccountId();
-  const {
-    data: { user },
-  } = await (await supabaseServerClient()).auth.getUser();
+  const user = await getAuthenticatedUser();
 
   const [rows, calendly, members] = await Promise.all([
     db
@@ -27,7 +25,7 @@ export default async function SettingsPage() {
       .prepare(
         `SELECT au.user_id, au.role, u.email
          FROM vis_account_users au
-         JOIN auth.users u ON u.id = au.user_id
+         JOIN vis_users u ON u.id = au.user_id
          WHERE au.account_id = ?
          ORDER BY au.created_at`,
       )

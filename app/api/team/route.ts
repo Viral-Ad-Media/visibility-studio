@@ -27,7 +27,7 @@ export const GET = apiRoute(async () => {
   const members = await serviceDb
     .prepare(
       `SELECT au.user_id, au.role, u.email FROM vis_account_users au
-    JOIN auth.users u ON u.id = au.user_id WHERE au.account_id = ? ORDER BY au.created_at`,
+    JOIN vis_users u ON u.id = au.user_id WHERE au.account_id = ? ORDER BY au.created_at`,
     )
     .all(accountId);
   return NextResponse.json({ members });

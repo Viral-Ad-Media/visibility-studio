@@ -1,7 +1,9 @@
+import { getAuthConfig } from "./lib/auth-config";
 import {
-  getSupabaseConfig,
-  SupabaseConfigurationError,
-} from "./lib/supabase-config";
+  CLERK_SESSION_COOKIE,
+  verifyClerkSessionToken,
+} from "./lib/clerk-session";
+import { SupabaseConfigurationError } from "./lib/supabase-config";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -11,7 +13,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // /(auth) pages themselves are untouched (not matched below).
 export async function proxy(request: NextRequest) {
   // The automated-engine webhook is called by Supabase (pg_net trigger + a
-  // pg_cron backstop), never by a logged-in browser — there's no Supabase
+  // pg_cron backstop), never by a logged-in browser — there's no browser
   // session to check. It has its own shared-secret check (see the route).
   // The Stripe webhook is the same shape: called server-to-server by Stripe,
   // no browser session, verified by its own signature check instead.
@@ -22,9 +24,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  let configuration: ReturnType<typeof getSupabaseConfig>;
+  let configuration: ReturnType<typeof getAuthConfig>;
   try {
-    configuration = getSupabaseConfig();
+    configuration = getAuthConfig();
   } catch (error) {
     if (!(error instanceof SupabaseConfigurationError)) throw error;
     console.error(error.message);
@@ -34,6 +36,35 @@ export async function proxy(request: NextRequest) {
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
+
+  if (configuration.provider === "clerk") {
+    const authHeader = request.headers.get("authorization");
+    const bearerToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : undefined;
+    const token =
+      request.cookies.get(CLERK_SESSION_COOKIE)?.value ||
+      request.cookies.get("__session")?.value ||
+      bearerToken;
+
+    const verified = verifyClerkSessionToken(token, {
+      issuer: configuration.issuer,
+      secretKey: configuration.secretKey,
+    });
+
+    if (!verified) {
+      if (request.nextUrl.pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      }
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.searchParams.set("next", request.nextUrl.pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(configuration.url, configuration.key, {

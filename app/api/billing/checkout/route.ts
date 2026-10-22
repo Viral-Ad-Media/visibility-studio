@@ -9,15 +9,13 @@ import {
 } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { getCurrentAccountId } from "@/lib/db";
-import { supabaseServerClient } from "@/lib/supabase-server";
+import { getAuthenticatedUser } from "@/lib/auth";
 import { getStripe, ACCESS_FEE_CENTS, CREDIT_PACKS } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
 async function POSTHandler(req: Request) {
-  const {
-    data: { user },
-  } = await (await supabaseServerClient()).auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user)
     return NextResponse.json({ error: "not signed in" }, { status: 401 });
 
@@ -70,7 +68,7 @@ async function POSTHandler(req: Request) {
   const stripe = getStripe();
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
-    customer_email: user.email,
+    customer_email: user.email ?? undefined,
     line_items: [
       {
         quantity: 1,

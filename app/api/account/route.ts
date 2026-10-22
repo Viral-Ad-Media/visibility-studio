@@ -2,18 +2,19 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiRoute, parseBody, positiveId, ApiError } from "@/lib/api";
 import { serviceDb, getRequestAccount } from "@/lib/db";
-import { supabaseServerClient } from "@/lib/supabase-server";
+import { getAuthenticatedUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 export const GET = apiRoute(async () => {
   const { userId, accountId } = await getRequestAccount();
-  const user = (await (await supabaseServerClient()).auth.getUser()).data.user!;
+  const user = await getAuthenticatedUser();
+  if (!user) throw new ApiError("Unauthorized", 401);
   const accounts = await serviceDb
     .prepare(
       `SELECT a.id, a.name FROM vis_accounts a JOIN vis_account_users au ON au.account_id=a.id
     WHERE au.user_id=? ORDER BY a.id LIMIT 100`,
     )
     .all(userId);
-  const invites = user.email_confirmed_at
+  const invites = user.emailConfirmedAt
     ? await serviceDb
         .prepare(
           `SELECT i.account_id, a.name FROM vis_team_invites i JOIN vis_accounts a ON a.id=i.account_id
@@ -25,7 +26,8 @@ export const GET = apiRoute(async () => {
 }, false);
 export const POST = apiRoute(async (req: Request) => {
   const { userId } = await getRequestAccount();
-  const user = (await (await supabaseServerClient()).auth.getUser()).data.user!;
+  const user = await getAuthenticatedUser();
+  if (!user) throw new ApiError("Unauthorized", 401);
   const { account_id, accept } = await parseBody(
     req,
     z.object({ account_id: positiveId, accept: z.boolean().default(false) }),
@@ -35,7 +37,7 @@ export const POST = apiRoute(async (req: Request) => {
       .prepare("SELECT id FROM vis_accounts WHERE id = ? FOR UPDATE")
       .get(account_id);
     if (accept) {
-      if (!user.email_confirmed_at)
+      if (!user.emailConfirmedAt)
         throw new ApiError(
           "Confirm your email before accepting an invitation",
           403,

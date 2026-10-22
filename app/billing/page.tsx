@@ -8,7 +8,7 @@ import {
   ShieldCheck,
   Rocket,
 } from "lucide-react";
-import { supabaseServerClient } from "@/lib/supabase-server";
+import { getAuthenticatedUser } from "@/lib/auth";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
 import { hasAppAccess, type Account } from "@/lib/shared";
@@ -42,9 +42,7 @@ export default async function BillingPage({
   searchParams: Promise<{ success?: string; canceled?: string }>;
 }) {
   const searchParams = await searchParamsPromise;
-  const {
-    data: { user },
-  } = await (await supabaseServerClient()).auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user) redirect("/login");
 
   const accountId = await getCurrentAccountId();

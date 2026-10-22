@@ -19,11 +19,10 @@ export default async function CockpitLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { userId } = await getRequestAccount();
   const membership = await db
-    .prepare(
-      "SELECT id FROM vis_account_users WHERE user_id = auth.uid() LIMIT 1",
-    )
-    .get();
+    .prepare("SELECT id FROM vis_account_users WHERE user_id = ? LIMIT 1")
+    .get(userId);
   if (!membership) redirect("/onboarding");
 
   const accountId = await getCurrentAccountId();
@@ -46,7 +45,6 @@ export default async function CockpitLayout({
     : 0;
 
   const creditBalance = await getCreditBalance(accountId);
-  const { userId } = await getRequestAccount();
   const admin = await serviceDb
     .prepare("SELECT user_id FROM vis_platform_admins WHERE user_id = ?")
     .get(userId);

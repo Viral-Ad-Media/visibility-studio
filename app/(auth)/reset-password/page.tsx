@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { resetPassword } from "../actions";
-import { supabaseServerClient } from "@/lib/supabase-server";
+import { getAuthenticatedUser } from "@/lib/auth";
 import PasswordInput from "@/components/PasswordInput";
 import { Field, FormMessage, inputClass as input } from "@/components/ui/field";
 import { buttonVariants } from "@/components/ui/button";
@@ -13,9 +13,7 @@ export default async function ResetPasswordPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const searchParams = await searchParamsPromise;
-  const {
-    data: { user },
-  } = await (await supabaseServerClient()).auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user) {
     redirect(
       "/forgot-password?error=" +

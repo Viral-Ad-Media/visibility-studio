@@ -3,7 +3,7 @@ import path from "path";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { Pool, types } from "pg";
-import { supabaseServerClient } from "./supabase-server";
+import { getAuthenticatedUser } from "./auth";
 import { validateDatabaseUrl } from "./database-config-validation.mjs";
 
 // Next.js auto-loads .env.local for `next dev`/`build`/`start`, but the
@@ -245,11 +245,9 @@ let cachedGetRequestUserId: (() => Promise<string>) | undefined;
 function getRequestUserId(): Promise<string> {
   if (!cachedGetRequestUserId) {
     cachedGetRequestUserId = cache(async (): Promise<string> => {
-      const { data, error } = await (
-        await supabaseServerClient()
-      ).auth.getUser();
-      if (error || !data.user) throw new UnauthenticatedDbAccessError();
-      return data.user.id;
+      const user = await getAuthenticatedUser();
+      if (!user) throw new UnauthenticatedDbAccessError();
+      return user.id;
     });
   }
   return cachedGetRequestUserId();

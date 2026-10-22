@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAccountId } from "@/lib/db";
 import { saveConnection } from "@/lib/engine/calendly";
-import { supabaseServerClient } from "@/lib/supabase-server";
+import { getAuthenticatedUser } from "@/lib/auth";
 import { safeLogAuditEvent as logAuditEvent } from "@/lib/auditLog";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +32,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const actorEmail =
-    (await (await supabaseServerClient()).auth.getUser()).data.user?.email ??
-    null;
+  const actorEmail = (await getAuthenticatedUser())?.email ?? null;
   await logAuditEvent(
     accountId,
     "calendly_connected",

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import db, { getCurrentAccountId, getRequestAccount } from "./db";
+import db, {
+  getCurrentAccountId,
+  getRequestAccount,
+  UnauthenticatedDbAccessError,
+} from "./db";
 import { hasAppAccess } from "./shared";
 
 export class ApiError extends Error {
@@ -96,6 +100,8 @@ export function apiRoute<T extends unknown[]>(
       }
       return await handler(...args);
     } catch (error) {
+      if (error instanceof UnauthenticatedDbAccessError)
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       if (error instanceof ApiError)
         return NextResponse.json(
           { error: error.message },
@@ -113,7 +119,10 @@ export function apiRoute<T extends unknown[]>(
           { error: "Access or available credits required — visit Billing" },
           { status: 402 },
         );
-      if (message === "unauthorized")
+      if (
+        message === "unauthorized" ||
+        message === "No account membership for current user"
+      )
         return NextResponse.json({ error: "Not authorized" }, { status: 403 });
       if (message === "queue_limit")
         return NextResponse.json(

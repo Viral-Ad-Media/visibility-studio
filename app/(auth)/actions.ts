@@ -1,6 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getAuthConfig } from "@/lib/auth-config";
+import {
+  clerkSignInWithPassword,
+  clerkSignOutCurrentUser,
+  clerkSignUpWithPassword,
+  clerkUpdatePasswordForCurrentUser,
+} from "@/lib/auth";
 import { supabaseServerClient } from "@/lib/supabase-server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { safeLogAuditEvent as logAuditEvent } from "@/lib/auditLog";
@@ -19,6 +26,17 @@ export async function login(formData: FormData) {
       ? rawNext
       : "/app";
 
+  const authConfig = getAuthConfig();
+  if (authConfig.provider === "clerk") {
+    const { error } = await clerkSignInWithPassword(email, password);
+    if (error) {
+      redirect(
+        `/login?error=${encodeURIComponent(error)}&next=${encodeURIComponent(next)}`,
+      );
+    }
+    redirect(next);
+  }
+
   const { error } = await (
     await supabaseServerClient()
   ).auth.signInWithPassword({ email, password });
@@ -35,6 +53,15 @@ export async function signup(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const ref = String(formData.get("ref") ?? "").trim();
   const refQuery = ref ? `?ref=${encodeURIComponent(ref)}` : "";
+
+  const authConfig = getAuthConfig();
+  if (authConfig.provider === "clerk") {
+    const { error } = await clerkSignUpWithPassword(email, password);
+    if (error) {
+      redirect(`/signup?error=${encodeURIComponent(error)}`);
+    }
+    redirect(`/onboarding${refQuery}`);
+  }
 
   const { data, error } = await (
     await supabaseServerClient()
@@ -58,6 +85,10 @@ export async function signup(formData: FormData) {
 
 export async function requestPasswordReset(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
+  const authConfig = getAuthConfig();
+  if (authConfig.provider === "clerk") {
+    redirect("/forgot-password?sent=1");
+  }
   // The link lands on /auth/confirm, which turns it into a session and then
   // sends the user on to /reset-password to pick a new password. That URL
   // must be in Supabase Auth's allowed redirect URLs.
@@ -91,6 +122,24 @@ export async function resetPassword(formData: FormData) {
     );
   }
 
+  const authConfig = getAuthConfig();
+  if (authConfig.provider === "clerk") {
+    const { error, email } = await clerkUpdatePasswordForCurrentUser(password);
+    if (error) {
+      redirect("/reset-password?error=" + encodeURIComponent(error));
+    }
+    const accountId = await getCurrentAccountId().catch(() => null);
+    if (accountId) {
+      await logAuditEvent(
+        accountId,
+        "password_changed",
+        `${email ?? "Someone"} reset their password`,
+        email ?? null,
+      );
+    }
+    redirect("/app/settings?password_changed=1");
+  }
+
   const client = await supabaseServerClient();
   const {
     data: { user },
@@ -121,6 +170,11 @@ export async function resetPassword(formData: FormData) {
 }
 
 export async function logout() {
+  const authConfig = getAuthConfig();
+  if (authConfig.provider === "clerk") {
+    await clerkSignOutCurrentUser();
+    redirect("/");
+  }
   await (await supabaseServerClient()).auth.signOut();
   redirect("/");
 }
@@ -140,6 +194,22 @@ export async function changePassword(formData: FormData) {
       "/app/settings?password_error=" +
         encodeURIComponent("Passwords don't match"),
     );
+  }
+
+  const authConfig = getAuthConfig();
+  if (authConfig.provider === "clerk") {
+    const { error, email } = await clerkUpdatePasswordForCurrentUser(password);
+    if (error) {
+      redirect("/app/settings?password_error=" + encodeURIComponent(error));
+    }
+    const accountId = await getCurrentAccountId();
+    await logAuditEvent(
+      accountId,
+      "password_changed",
+      `${email ?? "Someone"} changed their password`,
+      email ?? null,
+    );
+    redirect("/app/settings?password_changed=1");
   }
 
   const client = await supabaseServerClient();

@@ -10,7 +10,7 @@ import {
   AlertTriangle,
   Clock,
 } from "lucide-react";
-import { supabaseServerClient } from "@/lib/supabase-server";
+import { getAuthenticatedUser } from "@/lib/auth";
 import db, { getCurrentAccountId, serviceDb } from "@/lib/db";
 import { logout } from "@/app/(auth)/actions";
 
@@ -57,9 +57,7 @@ export default async function AdminPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const page = pageNumber((await searchParams).page);
-  const {
-    data: { user },
-  } = await (await supabaseServerClient()).auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user) redirect("/login");
 
   const self = await serviceDb
