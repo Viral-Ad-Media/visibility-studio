@@ -2,12 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getAuthConfig } from "@/lib/auth-config";
-import {
-  clerkSignInWithPassword,
-  clerkSignOutCurrentUser,
-  clerkSignUpWithPassword,
-  clerkUpdatePasswordForCurrentUser,
-} from "@/lib/auth";
+import { clerkSignOutCurrentUser } from "@/lib/auth";
 import { supabaseServerClient } from "@/lib/supabase-server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { safeLogAuditEvent as logAuditEvent } from "@/lib/auditLog";
@@ -28,13 +23,7 @@ export async function login(formData: FormData) {
 
   const authConfig = getAuthConfig();
   if (authConfig.provider === "clerk") {
-    const { error } = await clerkSignInWithPassword(email, password);
-    if (error) {
-      redirect(
-        `/login?error=${encodeURIComponent(error)}&next=${encodeURIComponent(next)}`,
-      );
-    }
-    redirect(next);
+    redirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
   const { error } = await (
@@ -56,11 +45,7 @@ export async function signup(formData: FormData) {
 
   const authConfig = getAuthConfig();
   if (authConfig.provider === "clerk") {
-    const { error } = await clerkSignUpWithPassword(email, password);
-    if (error) {
-      redirect(`/signup?error=${encodeURIComponent(error)}`);
-    }
-    redirect(`/onboarding${refQuery}`);
+    redirect(`/signup${refQuery}`);
   }
 
   const { data, error } = await (
@@ -87,7 +72,7 @@ export async function requestPasswordReset(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const authConfig = getAuthConfig();
   if (authConfig.provider === "clerk") {
-    redirect("/forgot-password?sent=1");
+    redirect("/login");
   }
   // The link lands on /auth/confirm, which turns it into a session and then
   // sends the user on to /reset-password to pick a new password. That URL
@@ -124,20 +109,7 @@ export async function resetPassword(formData: FormData) {
 
   const authConfig = getAuthConfig();
   if (authConfig.provider === "clerk") {
-    const { error, email } = await clerkUpdatePasswordForCurrentUser(password);
-    if (error) {
-      redirect("/reset-password?error=" + encodeURIComponent(error));
-    }
-    const accountId = await getCurrentAccountId().catch(() => null);
-    if (accountId) {
-      await logAuditEvent(
-        accountId,
-        "password_changed",
-        `${email ?? "Someone"} reset their password`,
-        email ?? null,
-      );
-    }
-    redirect("/app/settings?password_changed=1");
+    redirect("/login");
   }
 
   const client = await supabaseServerClient();
@@ -198,18 +170,7 @@ export async function changePassword(formData: FormData) {
 
   const authConfig = getAuthConfig();
   if (authConfig.provider === "clerk") {
-    const { error, email } = await clerkUpdatePasswordForCurrentUser(password);
-    if (error) {
-      redirect("/app/settings?password_error=" + encodeURIComponent(error));
-    }
-    const accountId = await getCurrentAccountId();
-    await logAuditEvent(
-      accountId,
-      "password_changed",
-      `${email ?? "Someone"} changed their password`,
-      email ?? null,
-    );
-    redirect("/app/settings?password_changed=1");
+    redirect("/app/security");
   }
 
   const client = await supabaseServerClient();

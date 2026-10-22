@@ -10,3 +10,11 @@ The schema preserves the existing application tables and security functions, add
 Verified on an isolated Neon branch: schema creation, authenticated role switching, two-tenant isolation, forged account denial, missing-identity denial, verified trial credits, denied identity-table writes, and test-row rollback. These checks are not a complete production acceptance suite.
 
 Outstanding: live schema comparison, data import/reconciliation and sequence alignment; verified Clerk adapter and provisioning; application joins currently referencing auth.users; portable queue dispatch and recovery; pooled-request isolation tests; production configuration and controlled cutover. Do not point the application at this schema yet. A matching schema build is not evidence of migrated customer data.
+
+## Authentication rollout
+
+Stage credentials without changing providers. The default remains Supabase; set `VIS_AUTH_PROVIDER=clerk` only after the destination schema, imported UUID directory, provider mappings, queue dispatch, and reconciliation are ready. Supabase mode retains its original user-directory queries.
+
+Clerk mode uses the official Next.js SDK for sign-in, signup, password recovery, and account security. Requests additionally check live session status and the mapped application's disabled flag. Existing custom `vis_clerk_session` cookies no longer authenticate; users must sign in again. Configure `NEXT_PUBLIC_SITE_URL` to the deployment's canonical origin for authorized-party verification.
+
+New verified Clerk users are provisioned transactionally. Imported users with `externalId` or an email matching the existing directory require explicit migration mapping; they are never linked automatically. Test login, signup, recovery, logout, revocation, and membership isolation on a preview configured with its own Clerk instance before cutover. Unit tests do not replace this live acceptance check.

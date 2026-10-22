@@ -10,12 +10,11 @@ import {
   validateAuthConfig,
   validateClerkConfig,
 } from "../lib/auth-config";
-import {
-  CLERK_SESSION_COOKIE,
-  signClerkSessionToken,
-  verifyClerkSessionToken,
-} from "../lib/clerk-session";
 import { proxy } from "../proxy";
+const sdk = vi.hoisted(() => ({ userId: null as string | null }));
+vi.mock("@clerk/nextjs/server", () => ({
+  clerkMiddleware: (handler: any) => (req: any) => handler(async () => ({ userId: sdk.userId }), req),
+}));
 
 const FIXTURE_HOST = "clerk.example.com";
 const FIXTURE_ISSUER = `https://${FIXTURE_HOST}`;
@@ -59,150 +58,29 @@ it("validates Clerk publishable and secret keys without leaking values", () => {
   ).toThrow(AuthConfigurationError);
 });
 
-it("verifies HS256 and RS256 Clerk session tokens and rejects wrong issuer, expiry or forged signatures", () => {
-  const now = 1_760_000_000;
-  const token = signClerkSessionToken({
-    subject: "user_2abcDEF123456",
-    issuer: FIXTURE_ISSUER,
-    secretKey: FIXTURE_SK_LIVE,
-    sessionId: "sess_123",
-    nowSeconds: now,
-    expiresInSeconds: 300,
-  });
-
-  expect(
-    verifyClerkSessionToken(token, {
-      issuer: FIXTURE_ISSUER,
-      secretKey: FIXTURE_SK_LIVE,
-      nowSeconds: now + 60,
-    }),
-  ).toEqual({
-    subject: "user_2abcDEF123456",
-    issuer: FIXTURE_ISSUER,
-    sessionId: "sess_123",
-  });
-
-  // Wrong issuer rejected
-  expect(
-    verifyClerkSessionToken(token, {
-      issuer: "https://clerk.other.example.com",
-      secretKey: FIXTURE_SK_LIVE,
-      nowSeconds: now + 60,
-    }),
-  ).toBeNull();
-
-  // Expired token rejected
-  expect(
-    verifyClerkSessionToken(token, {
-      issuer: FIXTURE_ISSUER,
-      secretKey: FIXTURE_SK_LIVE,
-      nowSeconds: now + 600,
-    }),
-  ).toBeNull();
-
-  // Forged signature rejected
-  expect(
-    verifyClerkSessionToken(token, {
-      issuer: FIXTURE_ISSUER,
-      secretKey: ["sk", "live", "other"].join("_"),
-      nowSeconds: now + 60,
-    }),
-  ).toBeNull();
-
-  // Standard Clerk RS256 JWT verification via JWKS
-  const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
-    modulusLength: 2048,
-  });
-  const jwk = {
-    ...(publicKey.export({ format: "jwk" }) as crypto.JsonWebKey),
-    kid: "ins_key_1",
-  };
-  const rsHeader = Buffer.from(
-    JSON.stringify({ alg: "RS256", typ: "JWT", kid: "ins_key_1" }),
-  ).toString("base64url");
-  const rsPayload = Buffer.from(
-    JSON.stringify({
-      iss: FIXTURE_ISSUER,
-      sub: "user_3L3IpxgLzcd57UNcQoMG5oiPbgy",
-      sid: "sess_rs256",
-      iat: now,
-      nbf: now,
-      exp: now + 300,
-      azp: "https://visibility-studio-tau.vercel.app",
-    }),
-  ).toString("base64url");
-  const rsSig = crypto
-    .sign("RSA-SHA256", Buffer.from(`${rsHeader}.${rsPayload}`), privateKey)
-    .toString("base64url");
-  const rsJwt = `${rsHeader}.${rsPayload}.${rsSig}`;
-
-  expect(
-    verifyClerkSessionToken(rsJwt, {
-      issuer: FIXTURE_ISSUER,
-      secretKey: FIXTURE_SK_LIVE,
-      jwksKeys: [jwk],
-      authorizedOrigins: ["https://visibility-studio-tau.vercel.app"],
-      nowSeconds: now + 10,
-    }),
-  ).toEqual({
-    subject: "user_3L3IpxgLzcd57UNcQoMG5oiPbgy",
-    issuer: FIXTURE_ISSUER,
-    sessionId: "sess_rs256",
-  });
-
-  // Unauthorized azp rejected
-  expect(
-    verifyClerkSessionToken(rsJwt, {
-      issuer: FIXTURE_ISSUER,
-      secretKey: FIXTURE_SK_LIVE,
-      jwksKeys: [jwk],
-      authorizedOrigins: ["https://other.example.com"],
-      nowSeconds: now + 10,
-    }),
-  ).toBeNull();
+it("requires explicit cutover even when both Clerk keys are staged", () => {
+  expect(resolveAuthProvider({ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: FIXTURE_PK_LIVE,
+    CLERK_SECRET_KEY: FIXTURE_SK_LIVE })).toBe("supabase");
+  expect(resolveAuthProvider({ VIS_AUTH_PROVIDER: "clerk" })).toBe("clerk");
 });
 
-it("enforces Clerk authentication in proxy without falling back to Supabase", async () => {
+it("delegates protected requests to Clerk and fails closed for missing configuration", async () => {
   vi.stubEnv("VIS_AUTH_PROVIDER", "clerk");
   vi.stubEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", FIXTURE_PK_LIVE);
   vi.stubEnv("CLERK_SECRET_KEY", "");
   vi.spyOn(console, "error").mockImplementation(() => {});
-
-  // Missing CLERK_SECRET_KEY fails closed with 503
-  const missingCfgRes = await proxy(new NextRequest("https://example.com/app"));
-  expect(missingCfgRes.status).toBe(503);
-  expect(missingCfgRes.headers.get("cache-control")).toBe("no-store");
-
+  const event = {} as any;
+  expect((await proxy(new NextRequest("https://example.com/app"), event))!.status).toBe(503);
   vi.stubEnv("CLERK_SECRET_KEY", FIXTURE_SK_LIVE);
-  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
-  vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_fixture");
-
-  // Unauthenticated API request returns 401
-  const unauthApi = await proxy(
-    new NextRequest("https://example.com/api/audits"),
-  );
-  expect(unauthApi.status).toBe(401);
-
-  // Unauthenticated /app request redirects to /login
-  const unauthApp = await proxy(
-    new NextRequest("https://example.com/app/campaigns"),
-  );
-  expect(unauthApp.status).toBe(307);
-  expect(unauthApp.headers.get("location")).toBe(
-    "https://example.com/login?next=%2Fapp%2Fcampaigns",
-  );
-
-  // Authenticated Clerk cookie passes proxy
-  const validToken = signClerkSessionToken({
-    subject: "user_3L3IpxgLzcd57UNcQoMG5oiPbgy",
-    issuer: FIXTURE_ISSUER,
-    secretKey: FIXTURE_SK_LIVE,
-  });
-  const authedReq = new NextRequest("https://example.com/app", {
-    headers: { cookie: `${CLERK_SESSION_COOKIE}=${validToken}` },
-  });
-  const authedRes = await proxy(authedReq);
-  expect(authedRes.status).toBe(200);
+  sdk.userId = null;
+  expect((await proxy(new NextRequest("https://example.com/api/audits"), event))!.status).toBe(401);
+  // A legacy custom cookie does not establish an SDK-authenticated identity.
+  expect((await proxy(new NextRequest("https://example.com/app", {
+    headers: { cookie: "vis_clerk_session=legacy-token" },
+  }), event))!.status).toBe(307);
+  sdk.userId = "user_verified_by_sdk";
+  expect((await proxy(new NextRequest("https://example.com/app"), event))!.status).toBe(200);
+  sdk.userId = null;
 });
 
 it("validates Clerk deployment environment in check-deploy-env.mjs", () => {

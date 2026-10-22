@@ -1,3 +1,4 @@
+import { userDirectoryTable } from "@/lib/auth";
 import db, { getCurrentAccountId, serviceDb } from "@/lib/db";
 import { getAuthenticatedUser } from "@/lib/auth";
 import {
@@ -25,7 +26,7 @@ export default async function SettingsPage() {
       .prepare(
         `SELECT au.user_id, au.role, u.email
          FROM vis_account_users au
-         JOIN vis_users u ON u.id = au.user_id
+         JOIN ${userDirectoryTable()} u ON u.id = au.user_id
          WHERE au.account_id = ?
          ORDER BY au.created_at`,
       )
@@ -55,7 +56,7 @@ export default async function SettingsPage() {
         </p>
       </div>
       <SettingsTabs
-        profile={<ProfileSection email={user?.email ?? ""} />}
+        profile={<ProfileSection email={user?.email ?? ""} clerk={user?.provider === "clerk"} />}
         team={<TeamSection members={members} currentUserId={user?.id ?? ""} />}
         integrations={
           <IntegrationsSection

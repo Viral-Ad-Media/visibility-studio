@@ -1,3 +1,4 @@
+import { resolveAuthProvider } from "@/lib/auth-config";
 import { redirect } from "next/navigation";
 import { resetPassword } from "../actions";
 import { getAuthenticatedUser } from "@/lib/auth";
@@ -12,6 +13,7 @@ export default async function ResetPasswordPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
+  if (resolveAuthProvider() === "clerk") redirect("/login");
   const searchParams = await searchParamsPromise;
   const user = await getAuthenticatedUser();
   if (!user) {

@@ -1,17 +1,14 @@
 import { getAuthConfig } from "./lib/auth-config";
-import {
-  CLERK_SESSION_COOKIE,
-  verifyClerkSessionToken,
-} from "./lib/clerk-session";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 import { SupabaseConfigurationError } from "./lib/supabase-config";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
 
 // Protects everything under /app/* (the cockpit) and /api/* (all routes,
 // which have zero auth checks of their own by design — this is the single
 // place that gates them). Marketing pages under /(marketing) and the
 // /(auth) pages themselves are untouched (not matched below).
-export async function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest, event: NextFetchEvent) {
   // The automated-engine webhook is called by Supabase (pg_net trigger + a
   // pg_cron backstop), never by a logged-in browser — there's no browser
   // session to check. It has its own shared-secret check (see the route).
@@ -38,32 +35,31 @@ export async function proxy(request: NextRequest) {
   }
 
   if (configuration.provider === "clerk") {
-    const authHeader = request.headers.get("authorization");
-    const bearerToken = authHeader?.startsWith("Bearer ")
-      ? authHeader.slice(7).trim()
-      : undefined;
-    const token =
-      request.cookies.get(CLERK_SESSION_COOKIE)?.value ||
-      request.cookies.get("__session")?.value ||
-      bearerToken;
-
-    const verified = verifyClerkSessionToken(token, {
-      issuer: configuration.issuer,
-      secretKey: configuration.secretKey,
-    });
-
-    if (!verified) {
-      if (request.nextUrl.pathname.startsWith("/api/")) {
-        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return clerkMiddleware(async (auth, req) => {
+      const protectedPath = /^\/(app|api|admin|billing|onboarding)(\/|$)/.test(req.nextUrl.pathname);
+      if (!protectedPath) return NextResponse.next();
+      const { userId } = await auth();
+      if (!userId) {
+        if (req.nextUrl.pathname.startsWith("/api/")) {
+          return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+        }
+        const loginUrl = new URL("/login", req.url);
+        loginUrl.searchParams.set("next", req.nextUrl.pathname);
+        return NextResponse.redirect(loginUrl);
       }
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/login";
-      loginUrl.searchParams.set("next", request.nextUrl.pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    return NextResponse.next({ request });
+      return NextResponse.next();
+    }, {
+      publishableKey: configuration.publishableKey,
+      secretKey: configuration.secretKey,
+      authorizedParties: process.env.NEXT_PUBLIC_SITE_URL
+        ? [new URL(process.env.NEXT_PUBLIC_SITE_URL).origin]
+        : [request.nextUrl.origin],
+    })(request, event);
   }
+
+  // Public auth/marketing pages need Clerk middleware when enabled, but
+  // retain their public behavior during the Supabase migration phase.
+  if (!/^\/(app|api)(\/|$)/.test(request.nextUrl.pathname)) return NextResponse.next();
 
   let response = NextResponse.next({ request });
 
@@ -110,5 +106,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/api/:path*"],
+  matcher: ["/((?!_next|.*\\..*).*)", "/api/:path*"],
 };

@@ -53,10 +53,10 @@ it("rejects secret and legacy service-role keys in public configuration", () => 
 it("fails closed with an uncached 503 when auth configuration is missing", async () => {
   configure();
   vi.spyOn(console, "error").mockImplementation(() => {});
-  const response = await proxy(new NextRequest("https://example.com/app"));
-  expect(response.status).toBe(503);
-  expect(response.headers.get("cache-control")).toBe("no-store");
-  expect(await response.json()).toEqual({
+  const response = await proxy(new NextRequest("https://example.com/app"), {} as any);
+  expect(response!.status).toBe(503);
+  expect(response!.headers.get("cache-control")).toBe("no-store");
+  expect(await response!.json()).toEqual({
     error: "Authentication is temporarily unavailable",
   });
 });

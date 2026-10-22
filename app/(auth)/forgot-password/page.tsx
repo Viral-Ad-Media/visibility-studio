@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { resolveAuthProvider } from "@/lib/auth-config";
 import Link from "next/link";
 import { requestPasswordReset } from "../actions";
 import { FormMessage, inputClass as input } from "@/components/ui/field";
@@ -8,6 +10,7 @@ export default async function ForgotPasswordPage({
 }: {
   searchParams: Promise<{ error?: string; sent?: string }>;
 }) {
+  if (resolveAuthProvider() === "clerk") redirect("/login");
   const searchParams = await searchParamsPromise;
   return (
     <form
