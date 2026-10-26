@@ -1,5 +1,4 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import { resolveAuthProvider } from "@/lib/auth-config";
 import type { Metadata } from "next";
 import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -57,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body>{resolveAuthProvider() === "clerk" ? <ClerkProvider signInUrl="/login" signUpUrl="/signup">{children}</ClerkProvider> : children}</body>
+      <body><ClerkProvider signInUrl="/login" signUpUrl="/signup">{children}</ClerkProvider></body>
     </html>
   );
 }

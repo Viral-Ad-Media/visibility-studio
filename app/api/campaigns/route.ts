@@ -10,7 +10,11 @@ import {
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
-import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
+import {
+  enqueueJob,
+  isInsufficientCredits,
+  wakeEngineAfterResponse,
+} from "@/lib/jobs";
 
 // Create a campaign from a set of businesses within one audit. Queues one
 // build_redesign and one create_booking_link job per business.
@@ -95,6 +99,7 @@ async function POSTHandler(req: Request) {
       return id;
     });
 
+    wakeEngineAfterResponse(businessIds.length * 2);
     return NextResponse.json({ id: campaignId });
   } catch (err) {
     if (isInsufficientCredits(err)) {

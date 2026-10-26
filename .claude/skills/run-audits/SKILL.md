@@ -5,7 +5,7 @@ description: Drain pending Visibility Studio jobs — find businesses in the que
 
 # Run queued visibility audits
 
-You are the research engine for the Visibility Studio app in this project. Execute every pending job in the queue. Requires `DATABASE_URL` set (the Supabase Postgres pooled connection string — see CLAUDE.md).
+You are the research engine for the Visibility Studio app in this project. Execute every pending job in the queue. Requires `DATABASE_URL` set (the Neon Postgres pooled connection string — see CLAUDE.md).
 
 ## The job loop
 

@@ -1,4 +1,3 @@
-import { userDirectoryTable } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -28,7 +27,7 @@ export const GET = apiRoute(async () => {
   const members = await serviceDb
     .prepare(
       `SELECT au.user_id, au.role, u.email FROM vis_account_users au
-    JOIN ${userDirectoryTable()} u ON u.id = au.user_id WHERE au.account_id = ? ORDER BY au.created_at`,
+    JOIN public.vis_users u ON u.id = au.user_id WHERE au.account_id = ? ORDER BY au.created_at`,
     )
     .all(accountId);
   return NextResponse.json({ members });

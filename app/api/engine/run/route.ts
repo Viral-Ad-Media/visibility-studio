@@ -1,6 +1,10 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { runWorkerLoop } from "@/lib/engine/worker";
+import {
+  engineWakesNeeded,
+  wakeEngineAfterResponse,
+} from "@/lib/engine/dispatch";
 
 export const dynamic = "force-dynamic";
 // A single business audit is 2 sequential Claude calls with web_search/
@@ -10,21 +14,38 @@ export const dynamic = "force-dynamic";
 // production. Requires a Vercel plan that allows >60s function duration.
 export const maxDuration = 300;
 
-// Called by a Supabase Postgres trigger (instant, on vis_jobs INSERT) and a
-// pg_cron backstop (every ~1 minute, drives forward multi-business audits and
-// reclaims anything stale). Not called by any client-facing code — protected
-// by a shared secret only Supabase's trigger/cron config and this route know,
-// same fail-closed shape as a webhook signature check. See CLAUDE.md "The
-// automated engine".
+// Woken by the app itself (lib/engine/dispatch.ts): after a route queues
+// jobs, and by this route after each run while claimable work remains, so a
+// multi-business audit drains as a chain of invocations. A daily Vercel cron
+// (GET, vercel.json) is the backstop for a job whose invocation died with
+// nothing else queued behind it. Not called by any client-facing code —
+// protected by a shared secret, same fail-closed shape as a webhook
+// signature check. See CLAUDE.md "The automated engine".
 export async function POST(req: Request) {
   const secret = req.headers.get("x-engine-secret");
   if (!secret || !secretMatches(secret, process.env.ENGINE_WEBHOOK_SECRET)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  return drain();
+}
 
+// Vercel Cron sends `Authorization: Bearer $CRON_SECRET` when that variable
+// is set on the project; without it the backstop stays disabled.
+export async function GET(req: Request) {
+  const header = req.headers.get("authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (!token || !secretMatches(token, process.env.CRON_SECRET)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  return drain();
+}
+
+async function drain() {
   try {
     const result = await runWorkerLoop();
-    return NextResponse.json({ ok: true, ...result });
+    const wakes = await engineWakesNeeded();
+    if (wakes > 0) wakeEngineAfterResponse(wakes);
+    return NextResponse.json({ ok: true, ...result, wakes });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });

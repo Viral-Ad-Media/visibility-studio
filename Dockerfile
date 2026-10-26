@@ -3,15 +3,14 @@
 # build → a small runtime stage holding only Next's standalone output.
 #
 #   docker build \
-#     --build-arg NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co \
-#     --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_... \
+#     --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_... \
 #     --build-arg NEXT_PUBLIC_SITE_URL=https://your-host \
 #     -t visibility-studio .
 #   docker run --env-file .env -p 3300:3300 visibility-studio
 #
 # NEXT_PUBLIC_* values are inlined into the JS bundle at build time, so they
 # are build args and changing them means rebuilding (same rule as Vercel —
-# see README "Supabase Auth configuration"). Everything secret (DATABASE_URL,
+# see README). Everything secret (DATABASE_URL,
 # ANTHROPIC_API_KEY, STRIPE_*, ...) is runtime-only via --env-file and never
 # written into an image layer. See .env.example for the full list.
 #
@@ -28,14 +27,9 @@ RUN npm ci --no-audit --no-fund
 
 FROM node:${NODE_VERSION}-alpine AS builder
 WORKDIR /app
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-# Legacy alternative to the publishable key; leave empty when using the above.
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_SITE_URL
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_OUTPUT=standalone \
     NEXT_TELEMETRY_DISABLED=1

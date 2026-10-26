@@ -8,7 +8,7 @@
  *   npm run engine -- complete <jobId> [--content <file>] [--meta <file.json>]
  *   npm run engine -- fail <jobId> --message "<why>"
  *
- * Talks to Postgres (Supabase) via lib/db.ts — set DATABASE_URL and
+ * Talks to Postgres (Neon) via lib/db.ts — set DATABASE_URL and
  * VIS_OPERATOR_ACCOUNT_ID before running.
  *
  * `add-business` meta is one JSON object of business fields (see FIELDS below).

@@ -8,7 +8,7 @@ description: Manual/debug fallback for Visibility Studio's campaign jobs — bui
 `build_redesign` and `create_booking_link` jobs process automatically in production via
 `lib/engine/worker.ts` — no human runs anything under normal operation. Use this skill only to
 inspect a job's context or manually drive/fail something stuck. Requires `DATABASE_URL` set (the
-Supabase Postgres pooled connection string — see CLAUDE.md).
+Neon Postgres pooled connection string — see CLAUDE.md).
 
 ## The job loop
 
@@ -62,10 +62,9 @@ business.
 Follow the Calendly MCP's own grounding order:
 
 1. `users-get_current_user` first, to ground the host.
-2. Check `vis_settings` for a `calendly_event_type_uri` — read it via the Supabase MCP's
-   `execute_sql` tool (`SELECT value FROM vis_settings WHERE key='calendly_event_type_uri'`,
-   against the Vam-dashboard project) rather than a raw `psql`/engine call; it's read-only and
-   doesn't need `DATABASE_URL`. If set, use that event type directly.
+2. Check `vis_settings` for a `calendly_event_type_uri` — read it with a read-only query
+   (`SELECT value FROM vis_settings WHERE key='calendly_event_type_uri'`) against the Neon
+   database. If set, use that event type directly.
 3. If unset, call `event_types-list_event_types` (filtered to the host) and **do not just grab the
    first active one** — inspect each candidate's `custom_questions` and `description`. A real
    account is likely to have event types built for a completely different funnel (e.g. an

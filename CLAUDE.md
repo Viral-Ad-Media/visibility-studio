@@ -1,9 +1,9 @@
 # Visibility Studio
 
-Audit hardening update: see `README.md` for the current database rollout and operating contract. The older deployment notes below describe the historical baseline. Current code uses Next.js 16, `proxy.ts`, active account claims, `vis_enqueue_job_guarded`, `vis_claim_job_v2`, and `vis_start_trial_for_account`. CLI `complete`/`fail` require the claimed `--attempt`; completion metadata must include measured `estimated_cost_usd`. Upgrade SQL is now versioned in `supabase/migrations`; the historical schema still needs export from Vam-dashboard.
+Audit hardening update: see `README.md` for the current database rollout and operating contract. The older deployment notes below describe the historical baseline. Current code uses Next.js 16, `proxy.ts`, active account claims, `vis_enqueue_job_guarded`, `vis_claim_job_v2`, and `vis_start_trial_for_account`. CLI `complete`/`fail` require the claimed `--attempt`; completion metadata must include measured `estimated_cost_usd`. The database is Neon (schema in `neon/`) and auth is Clerk; the Supabase project was retired in October 2026, so ignore any Supabase-era instruction you find in old notes.
 
 Multi-tenant business-visibility audit SaaS. The Next.js app (deployed on Vercel) is the visual
-cockpit; **Supabase (Postgres + Auth) is the database**, with every tenant-owned table scoped by
+cockpit; **Neon (Postgres) is the database** and **Clerk** handles sign-in, with every tenant-owned table scoped by
 Row Level Security via `account_id`. Both audits (`run_audit`/`audit_business` jobs) and campaigns
 (`build_redesign`/`create_booking_link` jobs — turning a selection of audited businesses into a
 coded homepage redesign mockup + a real Calendly booking link per business) are handled by **an
@@ -18,15 +18,15 @@ this app.
 `run_audit`/`audit_business`/`build_redesign`/`create_booking_link` jobs all process
 automatically, near-instantly, with no human trigger:
 
-- **Trigger**: a Postgres trigger on `vis_jobs` (`on_vis_job_inserted`, via the `pg_net` extension)
-  POSTs to `app/api/engine/run` the instant a row is inserted. A `pg_cron` job
-  (`vis-engine-drain-backstop`, every minute, Postgres-side — not gated by any Vercel plan's
-  cron-frequency limit) calls the same endpoint as a backstop, driving forward audits and
-  reclaiming anything that died mid-run. Both configured via the Supabase MCP's `apply_migration`
-  (migration `vis_engine_automation`).
-- **Auth**: the route checks an `x-engine-secret` header against `ENGINE_WEBHOOK_SECRET` — the
-  matching value lives in Supabase Vault (`vis_engine_webhook_url`/`vis_engine_webhook_secret`,
-  set via `execute_sql`, never committed to git).
+- **Trigger**: the app wakes the engine itself (`lib/engine/dispatch.ts`). Routes that queue jobs
+  POST to `app/api/engine/run` right after responding (`wakeEngineAfterResponse()`), and each
+  engine run wakes the next while claimable work remains, keeping at most three runs in flight —
+  that chain is what drives multi-business audits forward and reclaims anything that died
+  mid-run. A daily Vercel cron (`vercel.json`, `GET` with `CRON_SECRET`) is the last-resort
+  backstop. This replaced the old Supabase `pg_net` trigger + `pg_cron` job, which Neon doesn't
+  have.
+- **Auth**: `POST` checks an `x-engine-secret` header against `ENGINE_WEBHOOK_SECRET` (a Vercel
+  env var, never committed to git); the cron `GET` checks `Authorization: Bearer $CRON_SECRET`.
 - **Processing**: `lib/engine/worker.ts` claims one job via the `vis_claim_job()` RPC (`SECURITY
 DEFINER`, `FOR UPDATE SKIP LOCKED`), bounded to ~50s per invocation (`maxDuration = 60` on the
   route). A `run_audit` job (`lib/engine/discover.ts`) discovers up to `target_count` candidate
@@ -98,11 +98,11 @@ scope was explicitly confirmed with the user before building rather than assumed
 
 ## Database
 
-Postgres on Supabase, **shared with other unrelated apps** in the `Vam-dashboard` project — every
-table is `vis_`-prefixed to keep this app's schema isolated (`vis_audits`, `vis_businesses`,
-`vis_campaigns`, `vis_campaign_businesses`, `vis_jobs`, `vis_settings`). Managed via the Supabase
-MCP connector's `apply_migration` (not a local migration file) — there is no bootstrap-on-boot step
-the way there was with the old local SQLite file.
+Postgres on Neon. Every table is `vis_`-prefixed (a holdover from when the database was shared
+with other apps): `vis_audits`, `vis_businesses`, `vis_campaigns`, `vis_campaign_businesses`,
+`vis_jobs`, `vis_settings`, plus `vis_users` (the app's own user directory, keyed by the original
+UUIDs) and `vis_private.identity_map` (Clerk subject → `vis_users.id`). The schema is
+`neon/001_visibility_schema.sql`; there is no bootstrap-on-boot step.
 
 `lib/db.ts` is a thin `pg`-based compatibility shim, not a real ORM — it exists so the app's
 original better-sqlite3-shaped code (`db.prepare(sql).get/.all/.run(...)`) didn't need a full
@@ -136,13 +136,14 @@ npm run engine -- fail <jobId> --message "why"
 Business fields, campaign summaries, and booking-link meta go through `--meta` JSON files
 (scratchpad) — this avoids SQL-escaping entirely. `--content <file>` is for raw, unescaped output
 (currently just the redesign mockup HTML — painful to hand-escape into JSON). `add-business`
-dedupes on normalized website, then name+location. Read-only inspection queries can go through the
-Supabase MCP's `execute_sql` tool (project: Vam-dashboard) — no need for `DATABASE_URL` just to look.
+dedupes on normalized website, then name+location. Read-only inspection queries can run directly
+against Neon.
 
 ## RLS lockdown (what clients may write directly)
 
-The Supabase anon key is public, so any signed-in user can hit PostgREST directly and skip every
-check in `app/api/*` — RLS is the real boundary, not the routes. Migration `vis_rls_lockdown`
+RLS is the real boundary, not the routes: the impersonated `db` connection runs every request as
+the `authenticated` role with the user's claims, so a bug in a route can't widen access. (This
+section dates from Supabase, when the public anon key also exposed PostgREST.) Migration `vis_rls_lockdown`
 narrowed the tables where a plain tenant-member `FOR ALL` policy was too broad:
 
 - **Jobs are queued only via `vis_enqueue_job(p_type, p_target_id)`** (`lib/jobs.ts`'s
@@ -166,13 +167,12 @@ narrowed the tables where a plain tenant-member `FOR ALL` policy was too broad:
 **Phase 2** (`vis_jobs` SELECT-only, column grants on `vis_campaign_businesses`) was held back
 at first because the deployed code still wrote those tables directly. The code no longer does:
 job deletes in the audit/campaign DELETE routes do an impersonated ownership read, then run on
-`serviceDb` scoped by `account_id`. On a fresh Supabase project, apply it in the initial schema
-alongside the rest; on a live one, apply it once this code is deployed:
+`serviceDb` scoped by `account_id`. It is already part of the Neon schema:
 
 ```sql
 drop policy if exists vis_tenant_isolation on public.vis_jobs;
 create policy vis_jobs_member_read on public.vis_jobs for select
-  using (exists (select 1 from vis_account_users au where au.account_id = vis_jobs.account_id and au.user_id = auth.uid()));
+  using (exists (select 1 from vis_account_users au where au.account_id = vis_jobs.account_id and au.user_id = vis_private.current_user_id()));
 revoke insert, update, delete, truncate on public.vis_jobs from anon, authenticated;
 revoke insert, update on public.vis_campaign_businesses from anon, authenticated;
 grant insert (campaign_id, business_id) on public.vis_campaign_businesses to authenticated;
@@ -216,7 +216,7 @@ over the connected account's active event types.
   trial is actually usable, not a paywall around a paywall. Client calls it via
   `POST /api/billing/start-trial` (`StartTrialButton` in `components/BillingActions.tsx`), which
   runs the RPC through the impersonated `db` connection (not `serviceDb`) — impersonation is what
-  makes `auth.uid()` resolve inside the function body, same pattern as
+  makes `vis_private.current_user_id()` resolve inside the function body, same pattern as
   `vis_create_account_with_owner()` in `app/(auth)/actions.ts`.
 - **Credits fund real audit/campaign job cost** — a deliberately different model from a flat
   access-only paywall. `vis_credits_ledger` is append-only (`delta_usd` per row, balance =
@@ -284,7 +284,7 @@ second reward mechanism.
 - **No anti-abuse beyond the reward being gated on trial-start** (no CAPTCHA, no per-IP/device
   cap on signups) — same accepted v1 posture as the rest of this app's pre-launch billing surface
   ("solo testing" reasoning already used elsewhere); revisit before a real public launch.
-- **Verified via a rolled-back transaction** against production (fake `auth.users` row +
+- **Verified via a rolled-back transaction** against production (fake user row +
   `set_config('request.jwt.claims', ...)` impersonation, wrapped in `BEGIN`/`ROLLBACK`) rather
   than a real signup: referral created `pending` on signup, flipped to `rewarded` with both
   `$10` ledger rows written on trial-start, then confirmed zero residue after rollback.
@@ -300,16 +300,16 @@ layout).
   separate from `vis_account_users.role` (`'owner'`/`'member'`), which is scoped to one tenant's
   own account and has no concept of platform-wide privilege. Migration `vis_platform_admin`
   grandfathered the one real account (`id = 1`) to `true`; there is no self-service or UI path to
-  set this flag on any other account — it's operator-only, set by hand via `execute_sql`/a
+  set this flag on any other account — it's operator-only, set by hand with SQL/a
   migration, same trust tier as everything else that bypasses RLS in this app.
 - **The page does its own session + admin check**, the same self-gating pattern `/billing` already
   established — `middleware.ts`'s matcher only covers `/app/:path*` and `/api/:path*`, so a
   top-level route like this is never protected by middleware and must check
-  `supabaseServerClient().auth.getUser()` itself (redirect `/login`), then read the current
+  `getAuthenticatedUser()` itself (redirect `/login`), then read the current
   account's `is_platform_admin` via the impersonated `db` connection and redirect to `/app` if
   false.
 - **Every cross-tenant read goes through `serviceDb`** (bypasses RLS by design) — same trust
-  boundary as the Team feature's `auth.users` join. Shows: platform-wide stat cards (account
+  boundary as the Team feature's `vis_users` join. Shows: platform-wide stat cards (account
   count, access/trial split, total credit balance, total estimated Claude spend all-time, job
   queue depth by status), a per-account table (members/audits/campaigns/credit balance), and the
   last 20 errored jobs across every tenant (account, type, attempts, error text) — meant for
@@ -346,9 +346,8 @@ layout).
 
 ## Dev
 
-Requires `DATABASE_URL` in the environment (or `.env.local`) — the Supabase Postgres pooled
-("Transaction pooler") connection string. Get it from Supabase Dashboard → Vam-dashboard project →
-Project Settings → Database → Connection string. Without it, `npm run dev` and `npm run engine`
+Requires `DATABASE_URL` (the Neon pooled connection string) and the Clerk keys in the
+environment (or `.env.local`). Without it, `npm run dev` and `npm run engine`
 both fail at the first query, not at startup (the `pg.Pool` constructor doesn't validate eagerly).
 
 ```bash
@@ -364,10 +363,9 @@ sheet if needed.
 
 The automated engine additionally needs `ANTHROPIC_API_KEY` (a dedicated key with billing
 enabled — this makes real, metered Messages API calls including `web_search` at $10/1,000 calls)
-and `ENGINE_WEBHOOK_SECRET` (matches the value in Supabase Vault). **`pg_net` can't reach
-`localhost`**, so the trigger/cron only ever fire against the deployed Vercel URL — to test the
-engine locally, POST directly to `/api/engine/run` with the `x-engine-secret` header yourself,
-simulating what Supabase would call.
+and `ENGINE_WEBHOOK_SECRET`. The wake-ups go to `NEXT_PUBLIC_SITE_URL`, so set it to your local
+origin to drain jobs locally, or POST to `/api/engine/run` with the `x-engine-secret` header
+yourself.
 
 On Vercel, set `DATABASE_URL`, `ANTHROPIC_API_KEY`, and `ENGINE_WEBHOOK_SECRET` as project
 environment variables — see the "Vercel hosts the cockpit and the entire automated engine" note

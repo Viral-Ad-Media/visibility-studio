@@ -9,7 +9,11 @@ import {
 } from "@/lib/api";
 import { NextResponse } from "next/server";
 import db, { Audit, serviceDb } from "@/lib/db";
-import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
+import {
+  enqueueJob,
+  isInsufficientCredits,
+  wakeEngineAfterResponse,
+} from "@/lib/jobs";
 
 // Requeue an audit (e.g. after an error, or to top up businesses). The
 // insert below fires a Postgres trigger (pg_net) that POSTs to
@@ -50,6 +54,7 @@ async function POSTHandler(
     throw err;
   }
 
+  wakeEngineAfterResponse();
   return NextResponse.json({ ok: true });
 }
 

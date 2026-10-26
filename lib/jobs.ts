@@ -1,5 +1,7 @@
 import type { Db } from "./db";
 
+export { wakeEngineAfterResponse } from "./engine/dispatch";
+
 export type EnqueueableJobType =
   "run_audit" | "build_redesign" | "create_booking_link";
 

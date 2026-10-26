@@ -28,7 +28,7 @@ it("does not construct a pg pool or attempt localhost queries when DATABASE_URL 
 
 it("blocks deployment when Auth is configured but PostgreSQL is absent", () => {
   const result = spawnSync(process.execPath, ["scripts/check-deploy-env.mjs"], {
-    env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_fixture", DATABASE_URL: "" },
+    env: { ...process.env, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: `pk_live_${Buffer.from("clerk.example.com$").toString("base64")}`, CLERK_SECRET_KEY: "sk_live_fixture", DATABASE_URL: "" },
     encoding: "utf8",
   });
   expect(result.status).toBe(1);

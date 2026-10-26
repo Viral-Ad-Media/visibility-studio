@@ -10,7 +10,11 @@ import {
 import { NextResponse } from "next/server";
 import db, { getCurrentAccountId } from "@/lib/db";
 import { getCreditBalance } from "@/lib/billing";
-import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
+import {
+  enqueueJob,
+  isInsufficientCredits,
+  wakeEngineAfterResponse,
+} from "@/lib/jobs";
 
 // The insert below fires a Postgres trigger (pg_net) that POSTs to
 // /api/engine/run instantly — no application-side call needed. See CLAUDE.md
@@ -69,6 +73,7 @@ async function POSTHandler(req: Request) {
       await enqueueJob(tx, "run_audit", audit.lastInsertRowid as number);
       return audit.lastInsertRowid;
     });
+    wakeEngineAfterResponse();
     return NextResponse.json({ id: auditId });
   } catch (err) {
     if (isInsufficientCredits(err)) {
