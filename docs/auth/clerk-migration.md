@@ -1,6 +1,6 @@
 # Clerk migration preparation
 
-Status: design and preflight only. No Clerk application, user, credential, database schema, or live session has been changed. Do not run Clerk init against production or apply a database migration from this document.
+Status (October 2026): historical. Data now lives in Neon, Clerk is the only auth provider, and the Supabase project and its preflight script have been removed. The plan below is kept as the record of how identities were carried over; its Supabase-side steps no longer apply.
 
 Target application: `app_3KznnRH1c2kJHBTDR0DU8bs7kKc` (selected by the owner). Keep Supabase PostgreSQL. Preserve all existing application UUIDs, account IDs, memberships, ownership, trial claims, ledger entries, audits, campaigns, and integrations.
 

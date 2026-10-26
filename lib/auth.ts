@@ -3,19 +3,18 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getAuthConfig } from "./auth-config";
-import { supabaseServerClient } from "./supabase-server";
 import { serviceDb } from "./db";
 
 export type AuthenticatedUser = {
   id: string;
-  provider: "clerk" | "supabase";
+  provider: "clerk";
   providerUserId: string;
   email: string | null;
   emailConfirmedAt: string | null;
   sessionId?: string;
 };
 
-export async function resolveMappedIdentity(provider: "clerk" | "supabase", issuer: string, subject: string) {
+export async function resolveMappedIdentity(provider: "clerk", issuer: string, subject: string) {
   const row = await serviceDb.prepare(
     `SELECT u.id, u.email, u.email_confirmed_at, u.disabled_at
      FROM vis_private.identity_map m JOIN public.vis_users u ON u.id = m.user_id
@@ -30,12 +29,6 @@ export async function resolveMappedIdentity(provider: "clerk" | "supabase", issu
 
 export const getAuthenticatedUser = cache(async (): Promise<AuthenticatedUser | null> => {
   const config = getAuthConfig();
-  if (config.provider === "supabase") {
-    const { data, error } = await (await supabaseServerClient()).auth.getUser();
-    if (error || !data.user) return null;
-    return { id: data.user.id, provider: "supabase", providerUserId: data.user.id,
-      email: data.user.email ?? null, emailConfirmedAt: data.user.email_confirmed_at ?? null };
-  }
   // Only Clerk-verified sessions are accepted. Legacy application-signed cookies
   // are intentionally ignored. Check live status to honor revocation immediately.
   const { userId, sessionId } = await auth();
@@ -68,7 +61,3 @@ export async function clerkSignOutCurrentUser(): Promise<void> {
   jar.delete("__session");
 }
 
-// The identifier comes only from deployment configuration, never request input.
-export function userDirectoryTable(): "public.vis_users" | "auth.users" {
-  return getAuthConfig().provider === "clerk" ? "public.vis_users" : "auth.users";
-}

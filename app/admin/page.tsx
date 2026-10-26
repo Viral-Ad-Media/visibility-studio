@@ -66,7 +66,7 @@ export default async function AdminPage({
   if (!self) redirect("/app");
 
   // Cross-tenant reads — serviceDb bypasses RLS on purpose, same trust
-  // boundary as the Team feature's auth.users join.
+  // boundary as the Team feature's vis_users join.
   const [stats, accounts, erroredJobs] = await Promise.all([
     serviceDb
       .prepare(

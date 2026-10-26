@@ -6,7 +6,6 @@ import { NextRequest } from "next/server";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   AuthConfigurationError,
-  resolveAuthProvider,
   validateAuthConfig,
   validateClerkConfig,
 } from "../lib/auth-config";
@@ -53,19 +52,10 @@ it("validates Clerk publishable and secret keys without leaking values", () => {
   expect(() => validateClerkConfig(FIXTURE_PK_LIVE, FIXTURE_SK_TEST)).toThrow(
     "environment mismatch",
   );
-  expect(() =>
-    resolveAuthProvider({ VIS_AUTH_PROVIDER: "invalid" }),
-  ).toThrow(AuthConfigurationError);
-});
-
-it("requires explicit cutover even when both Clerk keys are staged", () => {
-  expect(resolveAuthProvider({ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: FIXTURE_PK_LIVE,
-    CLERK_SECRET_KEY: FIXTURE_SK_LIVE })).toBe("supabase");
-  expect(resolveAuthProvider({ VIS_AUTH_PROVIDER: "clerk" })).toBe("clerk");
+  expect(() => validateAuthConfig({})).toThrow(AuthConfigurationError);
 });
 
 it("delegates protected requests to Clerk and fails closed for missing configuration", async () => {
-  vi.stubEnv("VIS_AUTH_PROVIDER", "clerk");
   vi.stubEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", FIXTURE_PK_LIVE);
   vi.stubEnv("CLERK_SECRET_KEY", "");
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -87,7 +77,6 @@ it("validates Clerk deployment environment in check-deploy-env.mjs", () => {
   const res = spawnSync(process.execPath, ["scripts/check-deploy-env.mjs"], {
     env: {
       ...process.env,
-      VIS_AUTH_PROVIDER: "clerk",
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: FIXTURE_PK_LIVE,
       CLERK_SECRET_KEY: FIXTURE_SK_LIVE,
       DATABASE_URL: "postgresql://postgres:fixture@db.example.com:5432/postgres",

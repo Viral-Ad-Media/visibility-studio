@@ -11,15 +11,8 @@ async function user(id=owner, account?: number) {
 }
 beforeAll(async()=>{
  pg=new PGlite();
- await pg.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE SCHEMA auth;
- CREATE TABLE auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
- CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
- CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT (auth.jwt()->>'sub')::uuid $$;
- GRANT USAGE ON SCHEMA auth TO authenticated,anon;
- GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO authenticated,anon;
- INSERT INTO auth.users VALUES('${owner}','owner@example.com',now()),('${other}','other@example.com',now());`);
- await pg.exec(readFileSync('supabase/bootstrap/20261008213333_fresh_install.sql','utf8'));
- await pg.exec(readFileSync('supabase/migrations/20261008220320_derive_worker_job_account.sql','utf8')); 
+ await pg.exec(readFileSync('neon/001_visibility_schema.sql','utf8'));
+ await pg.exec(`INSERT INTO public.vis_users(id,email,email_confirmed_at) VALUES('${owner}','owner@example.com',now()),('${other}','other@example.com',now());`);
 });
 afterAll(async()=>{await pg?.close();});
 it('supports fresh onboarding, trial, audit, campaign and job creation with tenant isolation',async()=>{
@@ -57,7 +50,7 @@ it('supports fresh onboarding, trial, audit, campaign and job creation with tena
  expect(child).toEqual([{account_id:aid}]);
  await expect(pg.query("INSERT INTO vis_jobs(account_id,type,payload) VALUES($1,'audit_business',$2)",[bid,JSON.stringify({audit_id:audit})])).rejects.toThrow('job_account_mismatch');
  expect((await pg.query('SELECT * FROM vis_claim_job_v2()')).rows).toHaveLength(1);
- await expect(pg.exec(readFileSync('supabase/bootstrap/20261008213333_fresh_install.sql','utf8'))).rejects.toThrow('Existing Visibility Studio tables');
+ await expect(pg.exec(readFileSync('neon/001_visibility_schema.sql','utf8'))).rejects.toThrow('Existing Visibility Studio tables');
  await pg.exec('ROLLBACK');
- expect((await pg.query('SELECT count(*)::int n FROM auth.users')).rows[0]).toEqual({n:2});
+ expect((await pg.query('SELECT count(*)::int n FROM public.vis_users')).rows[0]).toEqual({n:2});
 });

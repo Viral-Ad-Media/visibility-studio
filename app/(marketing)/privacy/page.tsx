@@ -17,7 +17,7 @@ const SECTIONS = [
   },
   {
     title: "5. Service providers",
-    body: `We share information with providers only as needed to run the Service: Supabase (database and sign-in), Vercel (hosting), Anthropic (AI processing of audit research and drafts), Stripe (payments) and Calendly (booking links, only if you connect it). Each processes data under its own terms and privacy policy.`,
+    body: `We share information with providers only as needed to run the Service: Neon (database), Clerk (sign-in), Vercel (hosting), Anthropic (AI processing of audit research and drafts), Stripe (payments) and Calendly (booking links, only if you connect it). Each processes data under its own terms and privacy policy.`,
   },
   {
     title: "6. Cookies and local storage",

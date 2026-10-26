@@ -7,7 +7,6 @@ node_modules
 .github
 .trigger
 data
-supabase/.temp
 tests
 vitest.config.mts
 *.tsbuildinfo

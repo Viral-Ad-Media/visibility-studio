@@ -9,7 +9,11 @@ import {
 } from "@/lib/api";
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
-import { enqueueJob, isInsufficientCredits } from "@/lib/jobs";
+import {
+  enqueueJob,
+  isInsufficientCredits,
+  wakeEngineAfterResponse,
+} from "@/lib/jobs";
 
 const TYPES = ["build_redesign", "create_booking_link"] as const;
 
@@ -64,6 +68,7 @@ async function POSTHandler(
     throw err;
   }
 
+  wakeEngineAfterResponse();
   return NextResponse.json({ ok: true });
 }
 

@@ -38,9 +38,9 @@ types.setTypeParser(20, (val) => parseInt(val, 10));
 
 /**
  * Postgres-backed replacement for the old local better-sqlite3 file. Table
- * names are prefixed `vis_` (this app shares a Supabase project with other
- * unrelated apps — see CLAUDE.md). Schema lives in Supabase migrations, not
- * here; there is no local schema-bootstrap step anymore.
+ * names are prefixed `vis_` (a holdover from when this app shared its
+ * database with other apps). The schema lives in `neon/`, not here; there is
+ * no local schema-bootstrap step.
  *
  * This is a thin compatibility layer over `pg` that keeps the same
  * `db.prepare(sql).get/.all/.run(...)` shape the rest of the app already
@@ -58,13 +58,12 @@ types.setTypeParser(20, (val) => parseInt(val, 10));
  * ## Multi-tenancy: real RLS, not just app-level filtering
  *
  * The default export (`db`) impersonates the current logged-in user on
- * every query: it resolves the request's Supabase session, then runs
+ * every query: it resolves the request's Clerk session to the mapped
+ * `vis_users` id, then runs
  * `set_config('request.jwt.claims', ...)` + `SET LOCAL ROLE authenticated`
  * inside the same transaction as the actual query, so Postgres RLS policies
- * (`auth.uid()`) genuinely scope every read/write to that user's account —
- * this is what Supabase's own PostgREST does internally, just done by hand
- * here since the app talks to Postgres directly via `pg`, not the Supabase
- * client SDK. `SET LOCAL` (not `SET ROLE`) is deliberate: its scope is
+ * (`vis_private.current_user_id()`) genuinely scope every read/write to that
+ * user's account. `SET LOCAL` (not `SET ROLE`) is deliberate: its scope is
  * exactly one transaction, which is what keeps this safe if `DATABASE_URL`
  * ever moves onto a transaction-mode pooler.
  *
@@ -77,15 +76,10 @@ types.setTypeParser(20, (val) => parseInt(val, 10));
  * serves a browser request.
  */
 
-// `max` is deliberately small: DATABASE_URL currently points at Supabase's
-// direct connection (port 5432), not the pgbouncer/Supavisor pooler (6543)
-// — the pooler is still unreachable from this machine as of the multi-
-// tenant conversion (re-tested, still ENOTFOUND). A direct connection has a
-// real, much lower ceiling on total concurrent connections than a pooled
-// one, and every impersonated query now holds a client for a whole
-// mini-transaction (BEGIN..COMMIT) instead of one bare pool.query() call —
-// more reason to keep this conservative. Safe to raise once/if the app is
-// pointed back at the pooler.
+// `max` is deliberately small: every serverless instance gets its own pool,
+// and every impersonated query holds a client for a whole mini-transaction
+// (BEGIN..COMMIT) instead of one bare pool.query() call. Safe to raise when
+// DATABASE_URL is Neon's pooled (-pooler) endpoint.
 let pool: Pool | undefined;
 function getPool(): Pool {
   if (pool) return pool;
@@ -116,7 +110,7 @@ type BeginTx = <T>(fn: (txQuery: QueryFn) => Promise<T>) => Promise<T>;
 
 export class UnauthenticatedDbAccessError extends Error {
   constructor() {
-    super("db: no authenticated Supabase session for this request");
+    super("db: no authenticated session for this request");
     this.name = "UnauthenticatedDbAccessError";
   }
 }

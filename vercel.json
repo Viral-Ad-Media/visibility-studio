@@ -1,3 +1,4 @@
 {
-  "buildCommand": "npm run build:deploy"
+  "buildCommand": "npm run build:deploy",
+  "crons": [{ "path": "/api/engine/run", "schedule": "0 6 * * *" }]
 }
