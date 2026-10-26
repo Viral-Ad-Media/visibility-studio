@@ -19,9 +19,8 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
     return NextResponse.next();
   }
 
-  let configuration: ReturnType<typeof getAuthConfig>;
   try {
-    configuration = getAuthConfig();
+    getAuthConfig();
   } catch (error) {
     if (!(error instanceof AuthConfigurationError)) throw error;
     console.error(error.message);
@@ -46,8 +45,8 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
     }
     return NextResponse.next();
   }, {
-    publishableKey: configuration.publishableKey,
-    secretKey: configuration.secretKey,
+    // The SDK reads the keys from the environment. Passing secretKey here
+    // would require CLERK_ENCRYPTION_KEY and crash every request without it.
     authorizedParties: process.env.NEXT_PUBLIC_SITE_URL
       ? [new URL(process.env.NEXT_PUBLIC_SITE_URL).origin]
       : [request.nextUrl.origin],
