@@ -1,8 +1,8 @@
 import { validateAuthConfig } from "../lib/auth-config-validation.mjs";
-import { validateDatabaseUrl } from "../lib/database-config-validation.mjs";
+import { databaseUrlFromEnv, validateDatabaseUrl } from "../lib/database-config-validation.mjs";
 try {
   validateAuthConfig(process.env);
-  validateDatabaseUrl(process.env.DATABASE_URL);
+  validateDatabaseUrl(databaseUrlFromEnv(process.env));
   console.log(
     "Clerk Auth and PostgreSQL deployment configuration is present.",
   );

@@ -4,7 +4,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { Pool, types } from "pg";
 import { getAuthenticatedUser } from "./auth";
-import { validateDatabaseUrl } from "./database-config-validation.mjs";
+import { databaseUrlFromEnv, validateDatabaseUrl } from "./database-config-validation.mjs";
 
 // Next.js auto-loads .env.local for `next dev`/`build`/`start`, but the
 // standalone `tsx scripts/engine.ts` CLI has no such magic — load it here,
@@ -84,7 +84,7 @@ let pool: Pool | undefined;
 function getPool(): Pool {
   if (pool) return pool;
   pool = new Pool({
-    connectionString: validateDatabaseUrl(process.env.DATABASE_URL),
+    connectionString: validateDatabaseUrl(databaseUrlFromEnv(process.env)),
     ssl:
       process.env.DATABASE_SSL === "disable"
         ? false
