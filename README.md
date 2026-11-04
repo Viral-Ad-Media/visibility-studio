@@ -1,6 +1,36 @@
 # Visibility Studio
 
-Next.js cockpit for business audits, campaign mockups and Calendly booking links. Outreach delivery is manual.
+Multi-tenant SaaS that turns a local-business niche and location ("Dentists in Austin, TX") into a scored, sourced prospect list with drafted outreach, then builds a homepage redesign concept and a real Calendly booking link for the businesses you choose to pursue. Research runs automatically on an Anthropic-API worker; sending outreach always stays a manual, human step.
+
+The app has two halves:
+
+- **Marketing site** at `/` (`/about`, `/pricing`, `/faq`, `/terms`, `/privacy`): static pages that pitch the product.
+- **Cockpit** under `/app/*`, behind Clerk sign-in and the trial/access paywall: audits, campaigns, contacts, the email queue, referrals, the audit trail and settings. Platform operators also get `/admin`.
+
+## Screenshots
+
+All screenshots use fictional demo data (`*.example` domains), not real businesses.
+
+| | |
+| --- | --- |
+| **Marketing home** (`/`) <br> ![Marketing home page](docs/screenshots/marketing-home.png) | **Audits** (`/app`) — every niche + location request, with live status, counts and estimated spend <br> ![Audits list](docs/screenshots/audits.png) |
+| **New audit** (`/app/new`) — queue a niche, location and target count <br> ![New audit form](docs/screenshots/new-audit.png) | **Audit detail** (`/app/audit/[id]`) — engine summary plus each business's SEO, conversion, trust and opportunity scores, priority and CRM status <br> ![Audit detail](docs/screenshots/audit-detail.png) |
+| **Campaign** (`/app/campaigns/[id]`) — redesign mockup and booking link status per selected business <br> ![Campaign detail](docs/screenshots/campaign-detail.png) | **Contacts** (`/app/contacts`) — every audited business with a public email, across all audits <br> ![Contacts](docs/screenshots/contacts.png) |
+| **Emails** (`/app/emails`) — bulk outreach queue: copy drafts or open them in your own mail client; there is no send button <br> ![Email queue](docs/screenshots/emails.png) | **Audit trail** (`/app/audit-trail`) — account activity with the cost of each engine run <br> ![Audit trail](docs/screenshots/audit-trail.png) |
+
+## How it works
+
+1. **Queue an audit.** `/app/new` enqueues a `run_audit` job through `vis_enqueue_job_guarded`, which checks entitlement and reserves estimated credit.
+2. **Discovery.** The worker (`lib/engine/discover.ts`) finds up to `target_count` candidate businesses with Claude + web search and fans out one `audit_business` job per candidate.
+3. **Per-business audit.** `lib/engine/auditBusiness.ts` researches each site, scores it 1–5 on SEO, conversion, trust and opportunity, records only publicly visible contact details with their source URLs, and drafts an outreach email. When the last one finishes, the audit gets a templated summary and turns **Ready**.
+4. **Campaigns.** Select businesses from an audit to create a campaign. Each gets a `build_redesign` job (a labelled concept mockup of their homepage) and a `create_booking_link` job (a single-use link from the account's connected Calendly).
+5. **Outreach.** Contacts and Emails help you copy, open and track drafts. Delivery is always done by a person, outside the app.
+
+Jobs are woken by the app itself (`lib/engine/dispatch.ts` → `POST /api/engine/run`), with a daily Vercel cron as a backstop. Each completed job deducts its measured cost from the account's credit ledger.
+
+## Tech stack
+
+Next.js 16 (App Router, `proxy.ts`), React 19, Tailwind CSS 4, Clerk for authentication, Neon PostgreSQL with row-level security on every tenant table, the Anthropic SDK for the engine, Stripe Checkout for access and credit packs, and Vitest + PGlite for tests.
 
 ## Development
 
