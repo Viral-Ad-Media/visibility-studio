@@ -54,5 +54,11 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|.*\\..*).*)", "/api/:path*"],
+  matcher: [
+    "/((?!_next|.*\\..*).*)",
+    "/api/:path*",
+    // Clerk proxies its browser SDK through this path on Vercel. Include
+    // dotted asset URLs (clerk.browser.js) that the static-file rule skips.
+    "/__clerk/:path*",
+  ],
 };

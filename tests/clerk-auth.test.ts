@@ -3,13 +3,14 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { PGlite } from "@electric-sql/pglite";
 import { NextRequest } from "next/server";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   AuthConfigurationError,
   validateAuthConfig,
   validateClerkConfig,
 } from "../lib/auth-config";
-import { proxy } from "../proxy";
+import { config, proxy } from "../proxy";
 const sdk = vi.hoisted(() => ({ userId: null as string | null }));
 vi.mock("@clerk/nextjs/server", () => ({
   clerkMiddleware: (handler: any) => (req: any) => handler(async () => ({ userId: sdk.userId }), req),
@@ -20,6 +21,19 @@ const FIXTURE_ISSUER = `https://${FIXTURE_HOST}`;
 const FIXTURE_PK_LIVE = ["pk", "live", Buffer.from(`${FIXTURE_HOST}$`).toString("base64")].join("_");
 const FIXTURE_SK_LIVE = ["sk", "live", "fixture"].join("_");
 const FIXTURE_SK_TEST = ["sk", "test", "fixture"].join("_");
+
+it.each([
+  ["/__clerk/npm/@clerk/clerk-js@6/dist/clerk.browser.js", true],
+  ["/__clerk/v1/environment", true],
+  ["/login", true],
+  ["/signup", true],
+  ["/app", true],
+  ["/api/audits/report.json", true],
+  ["/_next/static/chunks/app.js", false],
+  ["/favicon.ico", false],
+])("routes %s through the auth proxy: %s", (url, expected) => {
+  expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(expected);
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
